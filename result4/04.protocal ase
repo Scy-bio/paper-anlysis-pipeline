@@ -1,5 +1,5 @@
+
 ##################################
-##################  
 ### 00.trimmed and filtered RNA-seq data
 while read i ; do fastp -i $i'_1.fq.gz' -I $i'_2.fq.gz' -o $i'cleaned_1.fq.gz' -O $i'cleaned_2.fq.gz' -l 36 -q 20 -w 12 ; done < list
 
@@ -98,87 +98,71 @@ gatk --java-options "-XX:ParallelGCThreads=10" SplitNCigarReads --R T1.genome.fa
 --I $i'.RG.markdup.bam' --O $i'.markdup.pk.split.bam' > 'log2split.'$i 2>&1 ; done < list1
 
 
-
-
+@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-## 制作 het-snp data */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/06.het.snp*
-## 杂合位点用于 等位基因检测
-/public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/02.star/07.het.snp
+## Make het-snp data for allele identify
+## High-quality heterozygous SNPs are defined as those showing the same genotype in at least two tissue types,
+## and if the hetSNP is only identified in one tissue, they are retained upon validation by DNA sequencing data
+
+bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT[\t%GT\t%DP]\n' T1.snps_fld_sel.vcf.gz > T1.output.txt
+awk -v OFS='\t' '{for (i=7; i<=NF; i+=2) {if ($i < 20) $(i-1)="./."}}1' T1.output.txt > tmp
+awk -v OFS='\t' '{for (i=6; i<=NF; i+=2) {if ($(i) == "0/1" || $(i) == "0|1") {print $0; break}}}' tmp > tmp1
+awk  -v OFS='\t' '{count=0; for (i=6; i<=NF; i+=2) {count += gsub(/0\/1|0\|1/, "", $i)}; print $0"\t"count}' tmp1 > tmp2
+awk -F "\t" '{if($16>1) print $0}' tmp2 | awk '{print $1"\t"$2}' > tmp3
+awk -F "\t" '{if($16<2) print $0}' tmp2 | cut -f 1-5 > tmp4
+
+gatk SelectVariants -V T1.DNA.filtered.snp.vcf.gz -select "AF < 1.00 " --exclude-filtered TRUE -O T1.DNA.het.filtered.snp.vcf.gz
+zcat T1.DNA.het.filtered.snp.vcf.gz | grep -v "#" | cut -f 1-5 > T1.het.vcf
+grep -Ff tmp4 -w T1.het.vcf | awk '{print $1"\t"$2}' > tmp4.site
+cat tmp4.site tmp3 | sort -k 1,1 -k 2,2n > sites_to_keep.t1.txt
+
+vcftools --gzvcf T1.snps_fld_sel.vcf.gz --positions sites_to_keep.t1.txt --recode --out T1.snp2ase
+
+## adjust the file format
+
 awk '{if(!/^#/) print $1"\t"$2"\t"$3"\t"$5"\t"$4"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10}' T1.snp2ase.recode.vcf > T1.info.snp
 grep "#" T1.snp2ase.recode.vcf > head.T1.list
 cat  head.T1.list T1.info.snp | cut -f 1-10 > T1.info.snp.vcf
 
-cp /public1/node3_shicy/PRJ01_Cgigas/seq_rna/output/05.map2mask/snp_site/manipulate_vcf.pl .
+**manipulate_vcf.pl in the script**
 ./manipulate_vcf.pl -i T1.info.snp.vcf -o T1.info.snp.het.vcf
 bcftools view -O z T1.info.snp.het.vcf > T1.info.snp.het.vcf.gz
 bcftools index -t T1.info.snp.het.vcf.gz
 
-zcat T1.info.snp.het.vcf.gz | grep -v "#" | wc -l
 
+## allele expression identify
 awk '($3=="exon") {OFS="\t"; print $1,$4-1,$5}' /public1/node3_liushk/braker_result/03.braker_result/CskiameaA.longest.gff > CskiameaA_gff_exon.bed
-vcftools --gzvcf T3.info.snp.het.vcf.gz --bed CskiameaA_gff_exon.bed --recode --out T3.het.snp.exon
-
+vcftools --gzvcf T1.info.snp.het.vcf.gz --bed CskiameaA_gff_exon.bed --recode --out T1.het.snp.exon
 bcftools view -O z T1.het.snp.exon.recode.vcf > T1.het.exon.vcf.gz
 bcftools index -t T1.het.exon.vcf.gz
-
-@@@@@
-awk '($3=="exon") {OFS="\t"; print $1,$4-1,$5,$9}' /public1/node3_liushk/braker_result/03.braker_result/CskiameaA.longest.gff > CskiameaA_gff_exon.bed
-bedtools intersect -a CskiameaA_gff_exon.bed -b T1.info.snp.het.vcf.gz > intersected_output.t1.vcf
-cut -d ";" -f 2 intersected_output.t1.vcf |  sort | uniq | wc -l
-
-
-#### snp to allele identified */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/03.gatk/07.snp.result/00.data*
-## High-quality heterozygous SNPs are defined as those showing the same genotype in at least two tissue types,
-## and if the hetSNP is only identified in one tissue, they are retained upon validation by DNA sequencing data
-bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT[\t%GT\t%DP]\n' T3.snps_fld_sel.vcf.gz > T3.output.txt
-awk -v OFS='\t' '{for (i=7; i<=NF; i+=2) {if ($i < 20) $(i-1)="./."}}1' T3.output.txt > tmp
-awk -v OFS='\t' '{for (i=6; i<=NF; i+=2) {if ($(i) == "0/1" || $(i) == "0|1") {print $0; break}}}' tmp > tmp1
-awk  -v OFS='\t' '{count=0; for (i=6; i<=NF; i+=2) {count += gsub(/0\/1|0\|1/, "", $i)}; print $0"\t"count}' tmp1 > tmp2
-
-awk -F "\t" '{if($16>1) print $0}' tmp2 | awk '{print $1"\t"$2}' > tmp3
-awk -F "\t" '{if($16<2) print $0}' tmp2 | cut -f 1-5 > tmp4
-
-nohup gatk SelectVariants -V /public1/node3_liushk/RarData_xb/08.vcf/01.ind.snp/ndm6.filtered.snp.vcf.gz -select "AF < 1.00 " --exclude-filtered TRUE -O ndm6.het.filtered.snp.vcf.gz &
-zcat ndm6.het.filtered.snp.vcf.gz | grep -v "#" | cut -f 1-5 > ndm6.het.vcf
-grep -Ff tmp4 -w ndm6.het.vcf | awk '{print $1"\t"$2}' > tmp4.site
-cat tmp4.site tmp3 | sort -k 1,1 -k 2,2n > sites_to_keep.t2.txt
-
-vcftools --gzvcf T3.snps_fld_sel.vcf.gz --positions sites_to_keep.t3.txt --recode --out T3.snp2ase
-
-**The result were then move to /public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/06.het.snp**
 
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 allele identified using phaser
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-*/public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/07.phaser*
-
-## TA1,TA2,TA3 For phase
-awk '$3=="gene"'  /public1/node3_liushk/braker_result/03.braker_result/CskiameaA.longest.gff  | cut -f1,4,5,9 | awk -F $'\t' 'BEGIN {OFS = FS} {split($4, a, ";"); split(a[1], b, "="); print $1, $2-1, $3, b[2]}' > 01.csiA.gene.bed
+awk '$3=="gene"' CskiameaA.gff  | cut -f1,4,5,9 | awk -F $'\t' 'BEGIN {OFS = FS} {split($4, a, ";"); split(a[1], b, "="); print $1, $2-1, $3, b[2]}' > 01.csiA.gene.bed
 
 cut -f 1 01.csiA.gene.bed | sort | uniq > 01.list
 while read i ; do awk '{if($1=="'$i'")print $0}' 01.csiA.gene.bed > '02.'$i'.bed' ; done < 01.list
 
-while read i ; do python /public/home/shicy/phaser/phaser/phaser.py --vcf T2.het.exon.vcf.gz --bam TA5.mk.split.bam,TD5.mk.split.bam,TG5.mk.split.bam,TL5.mk.split.bam,TM5.mk.split.bam  --paired_end 1 --mapq 60 --baseq 10 --sample TA5 --chr $i --threads 2  --id_separator - --o '02.phase/T3_'$i ; done < 01.bed/01.list
+while read i ; do python /public/home/shicy/phaser/phaser/phaser.py --vcf T1.het.exon.vcf.gz \
+--bam TA1.mk.split.bam,TD1.mk.split.bam,TG1.mk.split.bam,TL1.mk.split.bam,TM1.mk.split.bam  \
+--paired_end 1 --mapq 60 --baseq 10 --sample TA5 --chr $i --threads 2  --id_separator - --o '02.phase/T1_'$i ; done < 01.bed/01.list
 
-while read i; do python ~/phaser/phaser_gene_ae/phaser_gene_ae.py --haplotypic_counts 'T1_'$i'.haplotypic_counts.txt' --features '01.bed/02.'$i'.bed' --id_separator - --o '../09.phase_gene/T1_'$i'.gene_ae.txt'; done < 01.bed/list
+while read i; do python ~/phaser/phaser_gene_ae/phaser_gene_ae.py --haplotypic_counts 'T1_'$i'.haplotypic_counts.txt' \
+--features '01.bed/02.'$i'.bed' --id_separator - --o '../09.phase_gene/T1_'$i'.gene_ae.txt'; done < 01.bed/list
 
-#### compare the SNP with gene
-cat T1_HiC_scaffold_* > T1.tmp
-grep TD2.mk.split 00.data/T1.tmp > TD1.tmp.txt && cat T1.head TD1.tmp.txt > T1.TD.filted.txt
-grep TM2.mk.split 00.data/T1.tmp > TM1.tmp.txt && cat T1.head TM1.tmp.txt > T1.TM.filted.txt
-grep TL2.mk.split 00.data/T1.tmp > TL1.tmp.txt && cat T1.head TL1.tmp.txt > T1.TL.filted.txt
-grep TG2.mk.split 00.data/T1.tmp > TL1.tmp.txt && cat T1.head TL1.tmp.txt > T1.TG.filted.txt
-grep TA2.mk.split 00.data/T1.tmp > TA1.tmp.txt && cat T1.head TA1.tmp.txt > T1.TA.filted.txt
-
-**Result in /public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/08.phaser_result**
+### split the result to each tissue
+cat T1_* > T1.tmp
+grep TD1.mk.split 00.data/T1.tmp > TD1.tmp.txt && cat T1.head TD1.tmp.txt > T1.TD.filted.txt
+grep TM1.mk.split 00.data/T1.tmp > TM1.tmp.txt && cat T1.head TM1.tmp.txt > T1.TM.filted.txt
+grep TL1.mk.split 00.data/T1.tmp > TL1.tmp.txt && cat T1.head TL1.tmp.txt > T1.TL.filted.txt
+grep TG1.mk.split 00.data/T1.tmp > TL1.tmp.txt && cat T1.head TL1.tmp.txt > T1.TG.filted.txt
+grep TA1.mk.split 00.data/T1.tmp > TA1.tmp.txt && cat T1.head TA1.tmp.txt > T1.TA.filted.txt
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-### 等位基因不平衡表达测试 在R中
+### ASE test in R
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-######### bais /public1/node3_shicy/PRJ02_Csikamea/09.ASE/05.new.ase/03.bam
-#### https://elifesciences.org/articles/72825
 ######### ASE gene
 ### (sample$aCount>10 | sample$bCount>10) & sample$n_variants>2, binom_q<0.05
 ######### AE gene
@@ -217,26 +201,3 @@ dev.off()
 write.csv(T1.TA_mark_gene,'02.T1.TA_mark_gene.csv',row.names = F)
 write.csv(T1.TA_AE,'03.T1.TA_AE.csv',row.names = F)
 write.csv(T1.TA_ASE,'04.T1.TA_ASE.csv',row.names = F)
-
-
-
-####################################################################################################################
-#### Then the result mv in */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase_result*
-
-ls 02.T* | cut -f 1 -d "_"  | sed 's/02.//g'  > 00.list
-while read i; do cut -f 4 -d "," '02.'$i'_mark_gene.csv' | grep CsiA | sed 's/"//g' | sed 's/\r//g' | sort | uniq > '02.'$i'_mk_genelist' ; done < 00.list
-while read i; do cut -f 4 -d "," '04.'$i'_ASE.csv' | grep CsiA | sed 's/"//g' | sed 's/\r//g' | sort | uniq > '04.'$i'_ase_genelist' ; done < 00.list
-while read i; do cut -f 4 -d "," '03.'$i'_AE.csv' | grep CsiA | sed 's/"//g' | sed 's/\r//g' | sort | uniq > '03.'$i'_ae_genelist' ; done < 00.list
-
-#### state in Supplementary Table S6
-cat 04.T1*_ase_genelist  | sort | uniq -c | awk '{if($1>4) print $2}' | awk '{print $0"\t""con"}' > 01.t1.con
-cat 04.T1*_ase_genelist  | sort | uniq -c | awk '{if($1<2) print $2}' | awk '{print $0"\t""sp"}' > 01.t1.sp
-cat 04.T1*_ase_genelist  | sort | uniq -c | awk '{if($1<5 && $1 >1 ) print $2}' | awk '{print $0"\t""otherase"}' > 01.t1.other
-
-cat 02.T1.T*mk_genelist  | sort | uniq > 01.t1.all.mk
-cat 03.T1.T*_ae_genelist  | sort | uniq > 01.t1.all.ae
-cat 04.T1.T*ase_genelist | sort | uniq > 01.t1.all.ase
-
-grep -vFf 01.t2.all.ase -w  01.t2.all.ae | awk '{print $0"\t""ae"}' > 01.t2.ae
-
-cat 01.t1.other 01.t1.con 01.t1.sp 01.t1.ae > ../t1.fin.tab
