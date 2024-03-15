@@ -17,6 +17,18 @@ nohup bash ~/shicy/3d-dna/run-asm-pipeline.sh -r 2 --build-gapped-map --editor-r
 bash ~/shicy/3d-dna/run-asm-pipeline-post-review.sh -r purged.FINAL.review.assembly  ../05.3d-dna/purged.fa ../05.3d-dna/merged_nodups.txt
 bash ~/mambaforge/envs/hic/share/3d-dna/run-asm-pipeline-post-review.sh -r purged.rawchrom.review.assembly ../05.3d-dna/purged.fa ../05.3d-dna/purged.mnd.txt
 
+
+### 基因组评估以及画图脚本
+
+Hic
+circos
+
+busco
+
+### genome size compare
+
+
+
 ## annotation
 
 nohup singularity exec /home/data/braker3.sif braker.pl --genome=blk.fasta.masked --prot_seq=Metazoa.fa --rnaseq_sets_dirs=rnaseq2cgigas \
