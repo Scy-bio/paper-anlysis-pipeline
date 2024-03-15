@@ -68,3 +68,7 @@ awk -F "\t" '{if($9>0)print $0}'  Orthogroups.GeneCount.tsv | awk -F "\t" '{if($
 awk -F "\t" '{if($9>0)print $0}'  Orthogroups.GeneCount.tsv | awk -F "\t" '{if($4>0 && $5>0 && $7>0 && $8>0 && $10>0)print $0}' | awk -F "\t" '{if($16==0 && $17==0)print $0}' |  awk -F "\t" '{if($19==0 && $12==0 && $14==0 && $13==0 && $3==0 && $6==0 && $20==0 ) print $0}' | awk -F "\t" '{if($21==0 && $22==0 && $11==0 ) print $0}' | awk -F "\t" '{if($2==0 && $18==0 && $15==0 ) print $0}' | cut -f 1 > 04.Crassostrea
 
 awk -F "\t" '{if($9>0)print $0}'  Orthogroups.GeneCount.tsv | awk -F "\t" '{if($4==0 && $5==0 && $7==0 && $8==0 && $10==0)print $0}' | awk -F "\t" '{if($16==0 && $17==0)print $0}' |  awk -F "\t" '{if($19==0 && $12==0 && $14==0 && $13==0 && $3==0 && $6==0 && $20==0 ) print $0}' | awk -F "\t" '{if($21==0 && $22==0 && $11==0 ) print $0}' | awk -F "\t" '{if($2==0 && $18==0 && $15==0 ) print $0}' | cut -f 1 > 05.Csikamea
+
+
+######################################################################################################
+### gene expression in Different
