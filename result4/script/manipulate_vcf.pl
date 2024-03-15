@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-
+## the script from https://github.com/dorolin/PybridASE  and made a little modification
 ## manipulate vcf file that only contains alt/alt homozygous variants
 ## for a single individual and re-code them as ref/alt heterozygotes,
 ## and only keep GT field (also adjust AC, AF, MLEAC, MLEAF)
