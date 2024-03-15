@@ -64,7 +64,6 @@ gatk SelectVariants --exclude-filtered TRUE -select "AN > 4" -V T1.snps.vcf -O T
 gatk SelectVariants -select "AF<1.00" --exclude-filtered TRUE -V T1.snps_fld_sel_2.vcf.gz  -O T1.snp2mask.vcf.gz
 
 ### 03 make individual genome
-
 gatk FastaAlternateReferenceMaker -R $REF --line-width 80 \
 -V T1.snps_fld_sel_2.vcf.gz --snp-mask T1.snp2mask.vcf.gz --snp-mask-priority -O T1.genome.fa
 
@@ -72,30 +71,36 @@ awk -F "[ :]" '{if($1~">")print ">"$2 ; else print$0}' T1.genome.fa > tmp && mv 
 gatk CreateSequenceDictionary -R T1.genome.fa -O T1.genome.dict
 samtools faidx T1.genome.fa
 
-## 比对至个体基因组 */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/04.STAR*
-agat_convert_sp_gff2gtf.pl --gff /public1/node3_liushk/braker_result/03.braker_result/CskiameaA.longest.gff -o CskiameaA.gtf
-nohup STAR --runMode genomeGenerate --runThreadN 20  --genomeDir 01.index/index_T1 --genomeFastaFiles ../04.gatk/08.ind.genome/T1.genome.fa --sjdbGTFfile ../CskiameaA.gtf --sjdbOverhang 149 &
+### 04 reads_mapping and make the bam files for read count
+# 04.1 map reads
+STAR --runMode genomeGenerate --runThreadN 20  --genomeDir 01.index/index_T1 --genomeFastaFiles ../04.gatk/08.ind.genome/T1.genome.fa --sjdbGTFfile ../CskiameaA.gtf --sjdbOverhang 149
 
-while read i ; do STAR --genomeDir 01.index/index_T1 --runThreadN 20 --readFilesIn '../../00.cleaned.data/'$i'_1.cleaned.fq.gz'  '../../00.cleaned.data/'$i'_2.cleaned.fq.gz'  --readFilesCommand zcat --outSAMunmapped Within --outFileNamePrefix '02.1-pass/'$i  > '02.1-pass/log2map.'$i 2>&1  ; done < list1
+while read i ; do STAR --genomeDir 01.index/index_T1 --runThreadN 20 \
+--readFilesIn '../../00.cleaned.data/'$i'_1.cleaned.fq.gz'  '../../00.cleaned.data/'$i'_2.cleaned.fq.gz'  \
+--readFilesCommand zcat --outSAMunmapped Within --outFileNamePrefix '02.1-pass/'$i  > '02.1-pass/log2map.'$i 2>&1  ; done < list1
 
 cat T1*.tab | awk '($5 > 0 && $7 > 2 && $6==0)' | cut -f1-6 | sort | uniq > SJ.T1.filtered.tab
 
-STAR --genomeDir ../01.index/index_T2 --sjdbFileChrStartEnd SJ.T2.filtered.tab --runThreadN 20 \
---readFilesIn ../../../00.cleaned.data/TM5_1.cleaned.fq.gz ../../../00.cleaned.data/TM5_2.cleaned.fq.gz \
---readFilesCommand zcat --outSAMmapqUnique 255 --outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 30 --outFileNamePrefix TM5 &
+STAR --genomeDir ../01.index/index_T1 --sjdbFileChrStartEnd SJ.T1.filtered.tab --runThreadN 20 \
+--readFilesIn '../../00.cleaned.data/'$i'_1.cleaned.fq.gz'  '../../00.cleaned.data/'$i'_2.cleaned.fq.gz' \
+--readFilesCommand zcat --outSAMmapqUnique 255 --outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 30 --outFileNamePrefix $i; done < list1
 
-### 处理 bam */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/05.bam2phaser*
-while read i ; do samtools index $i'Aligned.sortedByCoord.out.bam' ; done < list
-while read i ; do samtools view -@ 10 -b -h -f 2 -q 255 $i'Aligned.sortedByCoord.out.bam' > '../../06.gatk/'$i'.uniq.bam' ;done < list
+# 04.2 deal the bam
+while read i; do samtools index $i'Aligned.sortedByCoord.out.bam' ; done < list1
+while read i; do samtools view -@ 10 -b -h -f 2 -q 255 $i'Aligned.sortedByCoord.out.bam' > $i'.uniq.bam'; done < list1
 
-# MarkDuplicates
 while read i ; do gatk --java-options "-XX:ParallelGCThreads=20" MarkDuplicates \
 -CREATE_INDEX true -VALIDATION_STRINGENCY SILENT --READ_NAME_REGEX null \
--I '01.rg/'$i'.RG.bam' -M '02.MarkDuplicates/'$i'.markdup_metrics.txt' -O '02.MarkDuplicates/'$i'.RG.markdup.bam'; done < list0
+-I $i'.uniq.bam' -M $i'.markdup_metrics.txt' -O $i'.RG.markdup.bam'; done < list1
 
-# SplitNCigar
-gatk --java-options "-XX:ParallelGCThreads=10" SplitNCigarReads --R ../09.maskgenome/gigas.cc.fa --I 05.pickup/cc1_pk.sorted.bam  --O 06.SplitNCigar/cc1.markdup.pk.split.bam > 06.SplitNCigar/log2split.cc1 2>&1 &
+while read i; do 
+gatk --java-options "-XX:ParallelGCThreads=10" SplitNCigarReads --R T1.genome.fa \
+--I $i'.RG.markdup.bam' --O $i'.markdup.pk.split.bam' > 'log2split.'$i 2>&1 ; done < list1
 
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 ## 制作 het-snp data */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/06.het.snp*
 ## 杂合位点用于 等位基因检测
 /public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/02.star/07.het.snp
