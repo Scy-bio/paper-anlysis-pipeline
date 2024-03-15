@@ -1,0 +1,33 @@
+### genome assembly
+nohup ~/TY/softwares/hifiasm-master-0.14.2/hifiasm -o hifiasm_sikamea_0142 -t 40 ../../hifi_m64165_201125_063852_subreads.fasta.gz 1>hifi_4_2.log 2>&1 &
+awk '{if($1=="S")print ">"$2"\n"$3}' hifiasm_sikamea_0142.p_utg.gfa > hifiasm_sikamea_0142.p_utg.fasta
+nohup busco  -m geno  -i hifiasm_sikamea_0142.p_utg.FINAL.fasta -l /public/home/liushk/TY/softwares/BUSCO_database/mollusca_odb10 -o  hifi_sikamea_high_het -c 20 --offline 1>busco.log 2>&1 &
+
+##  juicer + 3d-dna  挂载基因组
+壳橙 MboI | 壳黑 HindIII
+python /public/home/shicy/juicer/misc/generate_site_positions.py MboI genome purged.fa
+# python /public/home/shicy/juicer/misc/generate_site_positions.py HindIII genome purged.fa
+bwa index purged.fa
+seqkit fx2tab -l -g -n -i -H purged.fa | awk '{print $1"\t"$2}' > genome.contig.size
+nohup singularity exec -B /public1:/public1  ~/shicy/juicer_latest.sif juicer.sh -t 40 -z purged.fa -y genome_MboI.txt -p genome.contig.size -s MboI -D /opt/juicer &
+## nohup singularity exec -B /public1:/public1  ~/shicy/juicer_latest.sif juicer.sh -t 40 -z purged.fa -y genome_HindIII.txt -p genome.contig.size -s HindIII -D /opt/juicer &
+nohup bash /public/home/shicy/3d-dna-master/run-asm-pipeline.sh  -r 2 --build-gapped-map --editor-repeat-coverage 5 purged.fa merged_nodups.txt &
+nohup bash ~/shicy/3d-dna/run-asm-pipeline.sh -r 2 --build-gapped-map --editor-repeat-coverage 5 purged.fa merged_nodups.txt &
+
+bash ~/shicy/3d-dna/run-asm-pipeline-post-review.sh -r purged.FINAL.review.assembly  ../05.3d-dna/purged.fa ../05.3d-dna/merged_nodups.txt
+bash ~/mambaforge/envs/hic/share/3d-dna/run-asm-pipeline-post-review.sh -r purged.rawchrom.review.assembly ../05.3d-dna/purged.fa ../05.3d-dna/purged.mnd.txt
+
+## annotation
+
+nohup singularity exec /home/data/braker3.sif braker.pl --genome=blk.fasta.masked --prot_seq=Metazoa.fa --rnaseq_sets_dirs=rnaseq2cgigas \
+--softmasking --threads 32 --AUGUSTUS_CONFIG_PATH=/home/liushk/shicy/00.maker/augustus-3.4.0/config --GENEMARK_PATH=${ETP}/gmes \
+--workingdir=braker2blk --rnaseq_sets_ids=S1,S2,S3,S4,S5,S6,S7,S8,S9 &
+
+
+agat_convert_sp_gff2gtf.pl --gff tsebra1.gtf -o tsebra_result.gff
+agat_sp_manage_IDs.pl --gff tsebra_result.gff --ensembl --prefix blk_ --type_dependent  -o tsebra_result.tmp.gff
+awk -F ";" '!/^#/ {split($1,a,"\t");if(a[3]=="gene") print $1;else print $1";"$2 }; /^#/ {print $0}' tsebra_result.tmp.gff > tsebra_result.final.gff
+agat_sp_keep_longest_isoform.pl -gff  tsebra_result.final.gff -o blk.longest.gff
+
+agat_sp_extract_sequences.pl -g CskiameaA.longest.gff -f ../01.genome.mask/Cgigas.fa -t cds -p -o CskiameaA.pep.fa
+agat_sp_extract_sequences.pl -g CskiameaA.longest.gff -f ../01.genome.mask/Cgigas.fa -t cds    -o CskiameaA.cds.fa
