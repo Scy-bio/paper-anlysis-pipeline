@@ -7,8 +7,13 @@ Note: these scripts are internal to this project, not currently designed for gen
 ##############################################################################
 ## Experimental Design
 1 individual genome assemble with XXX data
+
 2 population anlysis with XXX data
+
 3 allele expression anlysis with XXX data
+
+
+
 
 ## 01.GeneticDiversity: 
 ### *Scripts to analyze genetic diversity and gene flow*
