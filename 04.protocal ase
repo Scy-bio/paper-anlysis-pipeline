@@ -1,120 +1,72 @@
 ##################################
-##################  */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase*
-### 00.trimmed and filtered */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/00.cleaned.data*
+##################  
+### 00.trimmed and filtered RNA-seq data
 while read i ; do fastp -i $i'_1.fq.gz' -I $i'_2.fq.gz' -o $i'cleaned_1.fq.gz' -O $i'cleaned_2.fq.gz' -l 36 -q 20 -w 12 ; done < list
-### 01.reads_mapping */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/02.star*
-STAR v2.7.9a was used with default parameters for the read mapping on the C.gigas reference genome with GTF file, by the Multi-sample 2-pass method.
-1. Run 1st mapping pass for all samples with ”usual” parameters. Using annotations is recommended either a the genome generation step, or mapping step.
-2. Run 2nd mapping pass for all samples , listing SJ.out.tab files from all samples in
---sjdbFileChrStartEnd /path/to/sj1.tab /path/to/sj2.tab ....
-# 01./1/ star 1-pass index
+
+### 01.reads_mapping
+# STAR v2.7.9a was used with default parameters for the read mapping on the C.gigas reference genome with GTF file, by the Multi-sample 2-pass method.
+# 1. Run 1st mapping pass for all samples with ”usual” parameters. Using annotations is recommended either a the genome generation step, or mapping step.
+# 2. Run 2nd mapping pass for all samples , listing SJ.out.tab files from all samples in
+
+# 01.1 1-pass index
 STAR --runMode genomeGenerate --runThreadN 8 --genomeDir 01.star_index/ \
---genomeFastaFiles $gigas_ref.fa --sjdbGTFfile $gigas_ref.gtf --sjdbOverhang 149
-# 01./2/ 1-pass mapping with indexed genome
-while read i ; do STAR --genomeDir ../../05.ase2group/HPA_index/ --runThreadN 30  --readFilesIn $i'_1.cleaned.fq.gz'  $i'_2.cleaned.fq.gz'  --readFilesCommand zcat --outSAMunmapped Within --outFileNamePrefix '02.1-pass/'$i  > '02.1-pass/log2map.'$i 2>&1  ; done < list
+--genomeFastaFiles $genome.fa --sjdbGTFfile $genome.gtf --sjdbOverhang 149
+
+# 01.2 1-pass mapping with indexed genome
+while read i ; do STAR --genomeDir 01.star_index/ --runThreadN 30 \ 
+--readFilesIn $i'_1.cleaned.fq.gz'  $i'_2.cleaned.fq.gz'  --readFilesCommand zcat \
+ --outSAMunmapped Within --outFileNamePrefix '02.1-pass/'$i  > '02.1-pass/log2map.'$i 2>&1  ; done < list
+
 cat *.tab | awk '($5 > 0 && $7 > 2 && $6==0)' | cut -f1-6 | sort | uniq > SJ.filtered.tab
-# 2-pass mapping with SJ.out.tab files
-while read i ;
-do STAR --genomeDir ../../05.ase2group/HPA_index/ \
---runThreadN 30 --sjdbFileChrStartEnd SJ.filtered.tab --readFilesCommand zcat \
---readFilesIn $i'_1.cleaned.fq.gz' $i'_2.cleaned.fq.gz' \
---outSAMmapqUnique 255 \
---outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 30 \
+# 01.3 2-pass mapping with SJ.out.tab files
+while read i; do STAR  --genomeDir 01.star_index/ --runThreadN 30 --sjdbFileChrStartEnd SJ.filtered.tab \
+--readFilesIn $i'_1.cleaned.fq.gz'  $i'_2.cleaned.fq.gz'  --readFilesCommand zcat \
+--outSAMmapqUnique 255 --outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 30 \
 --outFileNamePrefix '03.2-pass/'$i \ > '03.2-pass/log2map.'$i 2>&1 ; done < list
 
-while read i ; do samtools index $i'Aligned.sortedByCoord.out.bam' ; done < list
-while read i ; do samtools view -@ 10 -b -h -f 2 -q 255 $i'Aligned.sortedByCoord.out.bam' > '../04.gatk/'$i'.uniq.bam' ;done < list
+while read i; do samtools index $i'Aligned.sortedByCoord.out.bam'; done < list
+while read i; do samtools view -@ 10 -b -h -f 2 -q 255 $i'Aligned.sortedByCoord.out.bam' > '../04.gatk/'$i'.uniq.bam'; done < list
 
-##### 02.GATK */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/03.gatk*
-### 02.add_RG
+### 02 call variants using GATK4
+# 02.1 GATK4: add RG, mark duplicates, and SplitNCigarReads
 while read i; do  gatk AddOrReplaceReadGroups --INPUT $i'.uniq.bam'  --OUTPUT '01.rg/'$i'.RG.bam' --RGID $i --RGPL ILLUMINA --RGLB $i --RGPU RG --RGSM $i --CREATE_INDEX true; done < list1
-### 03.dedup_bam mark duplicates & index
+
 while read i ; do gatk --java-options "-XX:ParallelGCThreads=20" MarkDuplicates \
 -CREATE_INDEX true -VALIDATION_STRINGENCY SILENT --READ_NAME_REGEX null \
--I '01.rg/'$i'.RG.bam' -M '02.MarkDuplicates/'$i'.markdup_metrics.txt' -O '02.MarkDuplicates/'$i'.RG.markdup.bam'; done < list0
-### 04.SplitNCigarReads [已删除过程文件，bam]
-while read i ; do gatk --java-options "-XX:ParallelGCThreads=20" SplitNCigarReads --R /public1/node3_liushk/RarData_xb/04.ref/csi.main.fasta \
---I '02.MarkDuplicates/'$i'.RG.markdup.bam' --O '03.SplitNCigarReads/'$i'.RG.markdup.split.bam' ; done < list4
+-I '01.rg/'$i'.RG.bam' -M '02.MarkDuplicates/'$i'.markdup_metrics.txt' -O '02.MarkDuplicates/'$i'.RG.markdup.bam'; done < list1
 
-[报错信息]：
-ERROR MESSAGE: Bad input:We encountered a non-standard non-IUPAC base in the provided reference: '10'，
-问题可能是参考基因组序列文件编码格式有问题;在linux上用cat命令输出参考基因组序列文件，并重定向到新的文件。
-cat Donkey_Hic_genome.20180408.fa > Donkey_Hic_genome.20180408.fa.bak
-mv Donkey_Hic_genome.20180408.fa.bak Donkey_Hic_genome.20180408.fa
-https://www.omicsclass.com/article/835
+while read i ; do gatk --java-options "-XX:ParallelGCThreads=20" SplitNCigarReads --R $genome.fa \
+--I '02.MarkDuplicates/'$i'.RG.markdup.bam' --O '03.SplitNCigarReads/'$i'.RG.markdup.split.bam' ; done < list
 
-# 变异检测 HaplotypeCaller
-HaplotypeCaller应用的参考置信模型，以生成每个样本的GVCF，由-ERC GVCF或调用-ERC BP_RESOLUTION
-HaplotypeCaller 的工作原理是组装读取以创建潜在的单倍型，将读取重新排列为它们最可能的单倍型，然后通过它们的单倍型将这些读取投影回参考序列，以计算读取与参考的比对。在这一点上，我们可以计算每个可能的基因型的可能性并发出变异调用。
-1 将完成比对的bam文件，通过对比所有带有 REF 碱基的读数与带有任何非参考碱基的所有读数，估计该位点不存在 SNP 的置信度。
-2 通过计算提供反对这种插入缺失的证据的读数数量，估计在该位点不存在大小为 X（由命令行参数确定）的插入缺失的置信度，并根据该值估算我们不会看到等位基因的可能性信心十足地。
-基于此，我们得到基因型似然 (PL) 并计算GQ（从PLs）这两个模型的最低置信度。我们使用象征性的 ALT 等位基因，NON_REF来保存该位点不是纯合参考的可能性，以及等位基因特异性AD和PL字段值。
-# https://gatk.broadinstitute.org/hc/en-us/articles/360035531192-RNAseq-short-variant-discovery-SNPs-Indels-
-# https://github.com/gatk-workflows/gatk3-4-rnaseq-germline-snps-indels/blob/master/rna-germline-variant-calling.wdl
-# -stand-call-conf 20 -dont-use-soft-clipped-bases
+# 02.2 HaplotypeCaller
+# the parameter reference source 1: https://gatk.broadinstitute.org/hc/en-us/articles/360035531192-RNAseq-short-variant-discovery-SNPs-Indels-
+# the parameter reference source 2: https://github.com/gatk-workflows/gatk3-4-rnaseq-germline-snps-indels/blob/master/rna-germline-variant-calling.wdl
 
-REF=/public1/node3_liushk/RarData_xb/04.ref/csi.main.fasta
-sample=( HiC_scaffold_1 HiC_scaffold_4 HiC_scaffold_6 HiC_scaffold_7 HiC_scaffold_9 HiC_scaffold_11 HiC_scaffold_14 HiC_scaffold_15 HiC_scaffold_17 HiC_scaffold_19 )
-for i in ${sample[@]};do
+while read i; do 
 gatk --java-options "-Xmx800m -Djava.io.tmpdir=./tmp" HaplotypeCaller  \
 -R $REF -stand-call-conf 20 -dont-use-soft-clipped-bases \
--I 03.SplitNCigarReads/TA2.RG.markdup.split.bam \
--L $i  \
--O 04.split.gvcf/TA2.${i}.g.vcf.gz \
--ERC GVCF &
-done && wait
+-I '03.SplitNCigarReads/'$i'.RG.markdup.split.bam' \
+-O '04.split.gvcf/'$i'.g.vcf.gz' \
+-ERC GVCF ; done < list
 
-**gatk MergeVcfs  -I TM2.HiC_scaffold_1.g.vcf.gz -I TM2.HiC_scaffold_4.g.vcf.gz -I TM2.HiC_scaffold_6.g.vcf.gz -I TM2.HiC_scaffold_7.g.vcf.gz -I TM2.HiC_scaffold_9.g.vcf.gz -I TM2.HiC_scaffold_11.g.vcf.gz -I TM2.HiC_scaffold_14.g.vcf.gz  -I TM2.HiC_scaffold_15.g.vcf.gz -I TM2.HiC_scaffold_17.g.vcf.gz -I TM2.HiC_scaffold_19.g.vcf.gz -O ../05.merge.gvcf/TM2.merge.g.vcf.gz**
-**gatk --java-options "-Xmx12g"  CombineGVCFs  -R /public1/node3_liushk/RarData_xb/04.ref/csi.main.fasta --variant TA5.merge.g.vcf.gz --variant TD5.merge.g.vcf.gz --variant TG5.merge.g.vcf.gz --variant TL5.merge.g.vcf.gz --variant TM5.merge.g.vcf.gz -O ../06.ind.gvcf/T2.g.vcf.gz**
-**gatk --java-options "-Xmx12g"  GenotypeGVCFs  -R /public1/node3_liushk/RarData_xb/04.ref/csi.main.fasta --variant T1.g.vcf.gz  -O T1.vcf.gz**
+# 02.3 merge the g.vcf files from same individual and GenotypeGVCFs
+gatk --java-options "-Xmx12g"  CombineGVCFs  -R $REF --variant TA1.g.vcf.gz --variant TD1.g.vcf.gz --variant TG1.g.vcf.gz --variant TL1.g.vcf.gz --variant TM1.g.vcf.gz -O ../06.ind.gvcf/T1.g.vcf.gz
+gatk --java-options "-Xmx12g"  GenotypeGVCFs -R $REF --variant T1.g.vcf.gz  -O T1.vcf.gz
 
-# SelectVariants (filter SNP) SNP 且仅为双等位基因   
+# 02.4 SelectVariants (filter SNP) SNP and filter
 gatk SelectVariants -select-type SNP  --restrict-alleles-to BIALLELIC -V T1.vcf.gz -O T1.snp.vcf.gz
 
-## hard-filter SNPs  硬过滤
-##### as recommended in https://github.com/broadgsa/gatk/blob/master/doc_archive/methods/Calling_variants_in_RNAseq.md
-##### https://www.frontiersin.org/articles/10.3389/fgene.2021.655707/full
-**FS and QD criteria**  **allele frequency**
-## 不使用 --window 35 --cluster 3
-nohup gatk VariantFiltration --filter-name "FS"  --filter "FS > 30.0" --filter-name "QD"  --filter "QD < 2.0"  -V T1.snp.vcf.gz -O T1.snps_fld.vcf.gz &
-nohup gatk SelectVariants --exclude-filtered TRUE -V T1.snps_fld.vcf.gz -O T1.snps_fld_sel.vcf.gz &
+gatk VariantFiltration --filter-name "FS"  --filter "FS > 30.0" --filter-name "QD"  --filter "QD < 2.0"  -V T1.snp.vcf.gz -O T1.snps_fld.vcf.gz
+gatk SelectVariants --exclude-filtered TRUE -V T1.snps_fld.vcf.gz -O T1.snps_fld_sel.vcf.gz
 
-#### data to FastaAlternateReferenceMaker */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/03.gatk/07.snp.result/01.snp2mask*
-## 基因型过滤  GT with at least 10 reads >= 20%  && GT >= 50% （AN > 4  || AN >= 5）
 zcat T1.snps_fld_sel.vcf.gz | SnpSift filter "( GEN[*].DP >= 10 )" > T1.snps.vcf
 gatk SelectVariants --exclude-filtered TRUE -select "AN > 4" -V T1.snps.vcf -O T3.snps_fld_sel_2.vcf.gz
-gatk SelectVariants -select "AF<1.00" --exclude-filtered TRUE -V T3.snps_fld_sel_2.vcf.gz  -O T3.snp2mask.vcf.gz
+gatk SelectVariants -select "AF<1.00" --exclude-filtered TRUE -V T1.snps_fld_sel_2.vcf.gz  -O T1.snp2mask.vcf.gz
 
-### biallelic SNPs
-## T1 841,265 / 765,195
-## T2 849,020 / 764,097
-## T3 806,211 / 722,090
+### 03 make individual genome
 
-#### snp to allele identified */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/03.gatk/07.snp.result/00.data*
-## High-quality heterozygous SNPs are defined as those showing the same genotype in at least two tissue types,
-## and if the hetSNP is only identified in one tissue, they are retained upon validation by DNA sequencing data
-bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT[\t%GT\t%DP]\n' T3.snps_fld_sel.vcf.gz > T3.output.txt
-awk -v OFS='\t' '{for (i=7; i<=NF; i+=2) {if ($i < 20) $(i-1)="./."}}1' T3.output.txt > tmp
-awk -v OFS='\t' '{for (i=6; i<=NF; i+=2) {if ($(i) == "0/1" || $(i) == "0|1") {print $0; break}}}' tmp > tmp1
-awk  -v OFS='\t' '{count=0; for (i=6; i<=NF; i+=2) {count += gsub(/0\/1|0\|1/, "", $i)}; print $0"\t"count}' tmp1 > tmp2
-
-awk -F "\t" '{if($16>1) print $0}' tmp2 | awk '{print $1"\t"$2}' > tmp3
-awk -F "\t" '{if($16<2) print $0}' tmp2 | cut -f 1-5 > tmp4
-
-nohup gatk SelectVariants -V /public1/node3_liushk/RarData_xb/08.vcf/01.ind.snp/ndm6.filtered.snp.vcf.gz -select "AF < 1.00 " --exclude-filtered TRUE -O ndm6.het.filtered.snp.vcf.gz &
-zcat ndm6.het.filtered.snp.vcf.gz | grep -v "#" | cut -f 1-5 > ndm6.het.vcf
-grep -Ff tmp4 -w ndm6.het.vcf | awk '{print $1"\t"$2}' > tmp4.site
-cat tmp4.site tmp3 | sort -k 1,1 -k 2,2n > sites_to_keep.t2.txt
-
-vcftools --gzvcf T3.snps_fld_sel.vcf.gz --positions sites_to_keep.t3.txt --recode --out T3.snp2ase
-
-**The result were then move to /public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/06.het.snp**
-
-## 制作个体基因组  */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/03.gatk/08.ind.genome*
-## bedtools getfasta -fi gigas.cc.fa -bed ../09.maskgenome/cc.snps_fld_sel_2.vcf.gz  -fo test.fa.out  ## 查看是否替换成功
-nohup gatk FastaAlternateReferenceMaker -R /public1/node3_shicy/PRJ02_Csikamea/05.ase2group/HAP1.fasta --line-width 80 \
--V 07.snp.result/01.snp2mask/T1.snps_fld_sel_2.vcf.gz \
---snp-mask 07.snp.result/01.snp2mask/T1.snp2mask.vcf.gz --snp-mask-priority -O 08.ind.genome/T1.genome.fa &
+gatk FastaAlternateReferenceMaker -R $REF --line-width 80 \
+-V T1.snps_fld_sel_2.vcf.gz --snp-mask T1.snp2mask.vcf.gz --snp-mask-priority -O T1.genome.fa
 
 awk -F "[ :]" '{if($1~">")print ">"$2 ; else print$0}' T1.genome.fa > tmp && mv tmp T1.genome.fa
 gatk CreateSequenceDictionary -R T1.genome.fa -O T1.genome.dict
@@ -169,6 +121,26 @@ awk '($3=="exon") {OFS="\t"; print $1,$4-1,$5,$9}' /public1/node3_liushk/braker_
 bedtools intersect -a CskiameaA_gff_exon.bed -b T1.info.snp.het.vcf.gz > intersected_output.t1.vcf
 cut -d ";" -f 2 intersected_output.t1.vcf |  sort | uniq | wc -l
 
+
+#### snp to allele identified */public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/03.gatk/07.snp.result/00.data*
+## High-quality heterozygous SNPs are defined as those showing the same genotype in at least two tissue types,
+## and if the hetSNP is only identified in one tissue, they are retained upon validation by DNA sequencing data
+bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT[\t%GT\t%DP]\n' T3.snps_fld_sel.vcf.gz > T3.output.txt
+awk -v OFS='\t' '{for (i=7; i<=NF; i+=2) {if ($i < 20) $(i-1)="./."}}1' T3.output.txt > tmp
+awk -v OFS='\t' '{for (i=6; i<=NF; i+=2) {if ($(i) == "0/1" || $(i) == "0|1") {print $0; break}}}' tmp > tmp1
+awk  -v OFS='\t' '{count=0; for (i=6; i<=NF; i+=2) {count += gsub(/0\/1|0\|1/, "", $i)}; print $0"\t"count}' tmp1 > tmp2
+
+awk -F "\t" '{if($16>1) print $0}' tmp2 | awk '{print $1"\t"$2}' > tmp3
+awk -F "\t" '{if($16<2) print $0}' tmp2 | cut -f 1-5 > tmp4
+
+nohup gatk SelectVariants -V /public1/node3_liushk/RarData_xb/08.vcf/01.ind.snp/ndm6.filtered.snp.vcf.gz -select "AF < 1.00 " --exclude-filtered TRUE -O ndm6.het.filtered.snp.vcf.gz &
+zcat ndm6.het.filtered.snp.vcf.gz | grep -v "#" | cut -f 1-5 > ndm6.het.vcf
+grep -Ff tmp4 -w ndm6.het.vcf | awk '{print $1"\t"$2}' > tmp4.site
+cat tmp4.site tmp3 | sort -k 1,1 -k 2,2n > sites_to_keep.t2.txt
+
+vcftools --gzvcf T3.snps_fld_sel.vcf.gz --positions sites_to_keep.t3.txt --recode --out T3.snp2ase
+
+**The result were then move to /public1/node3_shicy/PRJ02_Csikamea/09.ASE/02.sample.ase/06.het.snp**
 
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
