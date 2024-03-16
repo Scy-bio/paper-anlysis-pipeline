@@ -1,14 +1,11 @@
 ### genome assembly
 nohup ~/TY/softwares/hifiasm-master-0.14.2/hifiasm -o hifiasm_sikamea_0142 -t 40 ../../hifi_m64165_201125_063852_subreads.fasta.gz 1>hifi_4_2.log 2>&1 &
 awk '{if($1=="S")print ">"$2"\n"$3}' hifiasm_sikamea_0142.p_utg.gfa > hifiasm_sikamea_0142.p_utg.fasta
-nohup busco  -m geno  -i hifiasm_sikamea_0142.p_utg.FINAL.fasta -l /public/home/liushk/TY/softwares/BUSCO_database/mollusca_odb10 -o  hifi_sikamea_high_het -c 20 --offline 1>busco.log 2>&1 &
+### Busco
+singularity exec -B /public1:/public1 /public1/db/sif/busco_v5.4.7.sif busco -m genome -i genome.fa -o genome -l /public1/node3_shicy/csi_tmp/00.gigas.genome/busco_downloads/metazoa_odb10/ --offline -c 4
 
 ##  juicer + 3d-dna  挂载基因组
-壳橙 MboI | 壳黑 HindIII
-python /public/home/shicy/juicer/misc/generate_site_positions.py MboI genome purged.fa
-# python /public/home/shicy/juicer/misc/generate_site_positions.py HindIII genome purged.fa
-bwa index purged.fa
-seqkit fx2tab -l -g -n -i -H purged.fa | awk '{print $1"\t"$2}' > genome.contig.size
+seqkit fx2tab -l -g -n -i -H hifiasm_sikamea_0142.p_utg.fasta | awk '{print $1"\t"$2}' > genome.contig.size
 nohup singularity exec -B /public1:/public1  ~/shicy/juicer_latest.sif juicer.sh -t 40 -z purged.fa -y genome_MboI.txt -p genome.contig.size -s MboI -D /opt/juicer &
 ## nohup singularity exec -B /public1:/public1  ~/shicy/juicer_latest.sif juicer.sh -t 40 -z purged.fa -y genome_HindIII.txt -p genome.contig.size -s HindIII -D /opt/juicer &
 nohup bash /public/home/shicy/3d-dna-master/run-asm-pipeline.sh  -r 2 --build-gapped-map --editor-repeat-coverage 5 purged.fa merged_nodups.txt &
@@ -18,17 +15,101 @@ bash ~/shicy/3d-dna/run-asm-pipeline-post-review.sh -r purged.FINAL.review.assem
 bash ~/mambaforge/envs/hic/share/3d-dna/run-asm-pipeline-post-review.sh -r purged.rawchrom.review.assembly ../05.3d-dna/purged.fa ../05.3d-dna/purged.mnd.txt
 
 
-### 基因组评估以及画图脚本
+################## 二代数据覆盖度
+fastp -i FDSW202364006-1r_L1_1_clean.rd.fq.gz -o csi_survey_1.cleaned.fq.gz -I FDSW202364006-1r_L1_2_clean.rd.fq.gz  -O csi_survey_2.cleaned.fq.gz -l 36 -q 20  -w 12
+bwa mem -t 40 -R "@RG\tID:ND\tSM:Survey\tLB:WGS\tPL:Illumia" hifiasm_sikamea_0142.p_utg.FINAL.fasta csi_survey_1.cleaned.fq.gz csi_survey_2.cleaned.fq.gz | singularity exec -B /public1:/public1 /public1/db/sif/trinityrnaseq.v2.14.0.simg samtools sort -@ 40 -o csi_survey.sorted.bam
+BamDeal_Linux statistics Coverage -i nd10.sorted.bam -r /public1/node3_shicy/PRJ02_Csikamea/00.data/00.Annotion/00.annotion/hifiasm_sikamea_0142.p_utg.FINAL.fasta -s -o depthpra_s_nd10 -w 100000
 
-Hic
+### Hic
+################## HIC 数据挂载结果
+bwa mem -t 30 -A1 -B4  -E50 -L0  index/hyotis_chr.fasta merge_hic_1.fq.gz 2>> hyotis_R1.log | samtools view -@ 30 -Shb - > mate_R1.bam
+bwa mem -t 30 -A1 -B4  -E50 -L0  index/hyotis_chr.fasta merge_hic_2.fq.gz 2>> hyotis_R2.log | samtools view -@ 30 -Shb - > mate_R2.bam
+
+hicBuildMatrix --samFiles mate_R1.bam mate_R2.bam --binSize 10000 --restrictionSequence GATC --danglingSequence GATC --restrictionCutFile   DpnII.bed --threads 16 --inputBufferSize 100000 --outBam hic.bam  -o hic_matrix.h5 --QCfolder ./hicQC
+
+hicMergeMatrixBins --matrix hic_matrix.h5 --outFileName hic_matrix.nb5.h5 -nb 5 &
+hicMergeMatrixBins --matrix hic_matrix.h5 --outFileName hic_matrix.nb10.h5 -nb 10 &
+hicMergeMatrixBins --matrix hic_matrix.h5 --outFileName hic_matrix.nb20.h5 -nb 20 &
+
+
+hicCorrectMatrix diagnostic_plot -m hic_matrix.nb5.h5 -o hic_matrix.nb5.h5.png
+hicCorrectMatrix diagnostic_plot -m hic_matrix.nb10.h5 -o hic_matrix.nb10.h5.png
+hicCorrectMatrix diagnostic_plot -m hic_matrix.nb20.h5 -o hic_matrix.nb20.h5.png
+
+## 矫正
+hicCorrectMatrix correct -m hic_matrix.nb5.h5  --filterThreshold -2 2 -o hic_corrected.nb5.h5
+hicCorrectMatrix correct -m hic_matrix.nb10.h5 --filterThreshold -2 2 -o hic_corrected.nb10.h5
+hicCorrectMatrix correct -m hic_matrix.nb20.h5 --filterThreshold -2 2 -o hic_corrected.nb20.h5
+
+## 画图
+hicPlotMatrix -m hic_corrected.nb10.h5 -o hicPlotMatrix.nb10.new.pdf --log1p --colorMap OrRd  --clearMaskedBins --chromosomeOrder HapA_chr5 HapB_chr5 HapA_chr3 HapB_chr3 HapA_chr2 HapB_chr2 HapA_chr6 HapB_chr6 HapA_chr7 HapB_chr7 HapA_chr9 HapB_chr9 HapA_chr4 HapB_chr4 HapA_chr1 HapB_chr1 HapA_chr10 HapB_chr10 HapA_chr8 HapB_chr8 --dpi 300
 
 ### circos
+mamba install -c bioconda circos=0.69.8=0 libiconv perl-math-bezier=0.01=pl526_1 perl-math-round=0.07=pl526_1 perl-math-vecstat=0.08=pl526_1 perl-set-intspan=1.19=pl526_1 perl-statistics-basic=1.6611=pl526_2 libwebp=0.5
+
+circos -V #确认版本
+circos | v 0.69-8 | 15 Jun 2019 | Perl 5.026002
+2.1 数据文件
+2.1.4.2.1. 染色体文件karyotype.txt的获取
+从genome.fa.fai里生成karyotype.txt文件
+samtools faidx genome.fa
+head -10 genome.fa.fai |awk '{print "chr - "$1" "$1" 0 "$2" genome1"}' > karyotype.txt
+2.1.4.3. 数据文件 —— 线性关系文件 _link.txt
+格式是六列数据，用tab分隔，每行都代表一条线，由具有共线性的两组染色体ID、起始位置和终止位置组成。
+contig003 7719 355757 contig014 3459 349346
+
+2 内容物绘图
+用bedtools以500kb为滑窗，沿染色体创建窗口
+cut -d ' ' -f 3,6 karyotype.txt | tr ' ' '\t' > tmp.genome
+bedtools makewindows -g tmp.genome -w 500000 > tmp.windows
+
+重复序列密度
+cat HAP1.fasta.mod.EDTA.TEanno.gff3 HAP2.fasta.mod.EDTA.TEanno.gff3 | grep -v "#" | awk '{print "HiC_scaffold_"$0}' > repeat.gff
+awk '{print $1"\t"$4"\t"$5}' repeat.gff | grep -v "#" > repeat.bed #提取重复位置信息
+bedtools coverage -a tmp.windows -b repeat.bed | awk '{print $1,$2,$3,$7}' > repeat.txt
+
+grep "Classification=LTR" repeat.gff | awk '{print $1"\t"$4"\t"$5}' | grep -v "#"  > LTR.bed
+grep "Classification=DNA/Helitron" repeat.gff | awk '{print $1"\t"$4"\t"$5}' | grep -v "#"  > Helitron.bed
+
+grep "Classification=TIR" repeat.gff | awk '{print $1"\t"$4"\t"$5}' | grep -v "#"  > tmp1
+grep "Classification=MITE" repeat.gff | awk '{print $1"\t"$4"\t"$5}'| grep -v "#"  > tmp2
+grep "Classification=DNA" repeat.gff | grep -v "Helitron" | awk '{print $1"\t"$4"\t"$5}'| grep -v "#"  > tmp3
+cat tmp1 tmp2 tmp3 > TIR.bed
+
+bedtools coverage -a ../tmp.windows -b LTR.bed | awk '{print $1,$2,$3,$7}' >      LTR.txt
+bedtools coverage -a ../tmp.windows -b Helitron.bed | awk '{print $1,$2,$3,$7}' > Helitron.txt
+bedtools coverage -a ../tmp.windows -b TIR.bed | awk '{print $1,$2,$3,$7}' >      TIR.txt
+
+
+bedtools makewindows -g tmp.genome -w 100000 > tmp.windows
+bedtools intersect -a tmp.windows -b A1_summits.bed -loj -wa -wb > A1.tmp
+awk '{s[$1" "$2" "$3]+= $8}END { for (i in s ) {print i, s[i] }}' OFS="\t" A1.tmp | sort -k1,1 -k2,2n > 01.A1.bed
+
+GC含量
+cat HAP1.fasta HAP2.fasta >  genome.fasta
+bedtools nuc -fi genome.fasta -bed ../tmp.windows | cut -f 1-3,5 | sed '1d' > gc_rate.txt
+
+3 基因密度
+awk '{if($3=="gene")print$0}' gene.gff | cut -f 1,4,5 | awk '{print $1"\t"$2"\t"$3}' > gene.bed
+bedtools coverage -a ../tmp.windows -b gene.bed | awk '{print $1,$2,$3,$7}' > gene.txt
+
+2.1.4.3.1. 线性关系文件 _link.txt的获取
+1 准备sample.bed和sample.cds两个文件
+python -m jcvi.formats.gff bed --type=gene --key=ID CskiameaA.longest.gff > CskiameaA.bed
+python -m jcvi.formats.gff bed --type=gene --key=ID CskiameaB.longest.gff > CskiameaB.bed
+
+2 运行共线性分析
+#生成sample.sample.anchors
+python -m jcvi.compara.catalog ortholog CskiameaA CskiameaB --dbtype prot --no_strip_names --cpu=10
+# python -m jcvi.compara.synteny screen --minspan=30 --simple coco.blue.anchors coco.blue.anchors.new
+python -m jcvi.compara.synteny screen --minspan=15 --minsize=5 --simple CskiameaA.CskiameaB.anchors CskiameaA.CskiameaB.anchors.new
+python simple2links.py CskiameaA.CskiameaB.anchors.simple
+## 结果
+cp CskiameaA.CskiameaB.anchors.simple_link.txt ../01.config_file/
+
+circos -conf circos.conf
+circos.conf示例
 see the circos.pl in script
-
-
-### Busco
-singularity exec -B /public1:/public1 /public1/db/sif/busco_v5.4.7.sif busco -m genome -i genome.fa -o genome -l /public1/node3_shicy/csi_tmp/00.gigas.genome/busco_downloads/metazoa_odb10/ --offline -c 4
-
 
 ### genome size compare
 library(ggplot2)#绘图包
