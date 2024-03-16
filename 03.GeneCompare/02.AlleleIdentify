@@ -73,59 +73,6 @@ positon = order
 savefile = csi.wgdi.collinearity.txt
 ```
 wgdi -icl 01.csi.wgdi.conf
-```
-
-################################################################################################################################
-### /public1/node3_shicy/00.gff.data/05.csi_allele/07.kaks
-################################################################################################################################
-*/public1/node3_shicy/00.gff.data/05.csi_allele/07.kaks*
-######### wgdi -ks csiA2cskiameaB.conf 使用这个结果
-
-
-################################################################################################################################
-### /public1/node3_shicy/00.gff.data/05.csi_allele
-################################################################################################################################
-### similiarity pep/cds/promoter
-
-###### 序列相似性 -- needle
-#### Data ready
-mamba install -c bioconda emboss seqkit
-mamba install -c conda-forge libiconv
-
-cut -f 1,2 06.allele.pair | sed 's/\t/\n/g' > 07.needle/00.allele.id
-seqkit grep -f 00.allele.id pep.fa > 01.allele.pep.fa
-
-cut -f 1,2 ../06.allele.pair | awk '{print$0"\t""gene"NR}' > 02.homo
-
-cut -f 1,3 02.homo > tmp1
-cut -f 2,3 02.homo > tmp2
-cat tmp1 tmp2 > 03.replace.id
-
-seqkit replace -p '(.+)' -r '{kv}' -k 03.replace.id 01.allele.pep.fa > 04.allele.pep.fa.change
-
-seqkit split --by-id --id-regexp "\[(.+)\]" 04.allele.pep.fa.change
-
-for file in `ls *.change`
-do
-     newFile=`echo $file | sed 's/04.allele.pep.fa.part_/allele_/' | sed 's/\.change//'`
-     mv $file $newFile
-done
-
-### compare by needle
-5 进行批量的全局比对（默认参数）
-while read i ; do needle -asequence '04.allele.pep.fa.change.split/'$i -bsequence '04.allele.pep.fa.change.split/'$i -gapopen 10 -gapextend 0.5 -outfile '05.result/'$i'.needle' ; done < list
-grep "Similarity" *.needle > 05.needle_result
-6 只要每个文件的第二个比对结果
-tac 05.needle_result | sed 's/\.needle:# Similarity://g' | awk '!i[$1]++' > 05.needle_result
-cut -f 2 -d "(" 05.needle_result | cut -f 1 -d ")" | sed 's/%//g' > 06.tmp.needle
-
-### gene location & length
-awk '{print $9"\t"$1"\t"$4"\t"$5"\t"($5-$4+1)}' /public1/node3_shicy/PRJ02_Csikamea/12.redundant_gene/00.all.gene.gff > 00.all.gene.stats
-### pep lengh
-seqkit fx2tab -l -n  01.allele.pep.fa > 01.allele.pep.table
-### similiarity pep/cds/promoter
-### kaks
-/public1/node3_shicy/00.gff.data/05.csi_allele/07.kaks/csi.wgdi.ks.txt
 
 
 ##### 基因功能及名称注释
