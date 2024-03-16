@@ -21,25 +21,50 @@ bash ~/mambaforge/envs/hic/share/3d-dna/run-asm-pipeline-post-review.sh -r purge
 ### 基因组评估以及画图脚本
 
 Hic
-circos
 
-busco
+### circos
+see the circos.pl in script
+
+
+### Busco
+singularity exec -B /public1:/public1 /public1/db/sif/busco_v5.4.7.sif busco -m genome -i genome.fa -o genome -l /public1/node3_shicy/csi_tmp/00.gigas.genome/busco_downloads/metazoa_odb10/ --offline -c 4
+
 
 ### genome size compare
+library(ggplot2)#绘图包
+library(ggpubr)#基于ggplot2的可视化包，主要用于绘制符合出版要求的图形
+library(ggsignif)#用于P值计算和显著性标记
+library(tidyverse)#数据预处理
+library(ggprism)#提供了GraphPad prism风格的主题和颜色，主要用于美化我们的图形
+
+read.table('genomesize.txt') -> df
+df$V1 <- factor(df$V1,levels = c("Mytilida", "Ostreida", "Pectinida","Venerida", "Cardiida"))
+p <-ggplot(df,aes(x=V1,y=V2))+#指定数据
+    stat_boxplot(geom = "errorbar", width=0.1,size=0.8)+#添加误差线,注意位置，放到最后则这条先不会被箱体覆盖
+    geom_boxplot(aes(fill=V1), #绘制箱线图函数
+                 outlier.colour="white",size=0.8) +
+  theme(panel.background =element_blank(), #背景
+        axis.line=element_line(),#坐标轴的线设为显示
+        legend.position="none",plot.title = element_text(size=14))+#图例位置
+  geom_jitter(width = 0.2)+#添加抖动点
+  ggtitle("boxplot")#标题
 
 
+p1 <- p + theme_prism(palette = "candy_bright",
+                base_fontface = "plain", # 字体样式，可选 bold, plain, italic
+                base_family = "serif", # 字体格式，可选 serif, sans, mono, Arial等
+                base_size = 16,  # 图形的字体大小
+                base_line_size = 0.8, # 坐标轴的粗细
+                axis_text_angle = 45)+ # 可选值有 0，45，90，270
+    scale_fill_prism(palette = "summer")
 
-## annotation
 
-nohup singularity exec /home/data/braker3.sif braker.pl --genome=blk.fasta.masked --prot_seq=Metazoa.fa --rnaseq_sets_dirs=rnaseq2cgigas \
---softmasking --threads 32 --AUGUSTUS_CONFIG_PATH=/home/liushk/shicy/00.maker/augustus-3.4.0/config --GENEMARK_PATH=${ETP}/gmes \
---workingdir=braker2blk --rnaseq_sets_ids=S1,S2,S3,S4,S5,S6,S7,S8,S9 &
+p2 <- p1 + geom_signif(comparisons = list(c("Ostreida","Mytilida"),c("Ostreida","Pectinida")),#设置需要比较的组
+                      y_position = c(2800,1450),#图中横线位置设置
+                      tip_length = c(c(0.02,0.02),c(0.02,0.02)),#横线下方的竖线设置
+                      size=0.8,color="black")
 
 
-agat_convert_sp_gff2gtf.pl --gff tsebra1.gtf -o tsebra_result.gff
-agat_sp_manage_IDs.pl --gff tsebra_result.gff --ensembl --prefix blk_ --type_dependent  -o tsebra_result.tmp.gff
-awk -F ";" '!/^#/ {split($1,a,"\t");if(a[3]=="gene") print $1;else print $1";"$2 }; /^#/ {print $0}' tsebra_result.tmp.gff > tsebra_result.final.gff
-agat_sp_keep_longest_isoform.pl -gff  tsebra_result.final.gff -o blk.longest.gff
-
-agat_sp_extract_sequences.pl -g CskiameaA.longest.gff -f ../01.genome.mask/Cgigas.fa -t cds -p -o CskiameaA.pep.fa
-agat_sp_extract_sequences.pl -g CskiameaA.longest.gff -f ../01.genome.mask/Cgigas.fa -t cds    -o CskiameaA.cds.fa
+pdf(file = "genomesize1.pdf", width =8, height = 6)
+p2
+dev.off( )
