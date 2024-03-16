@@ -18,15 +18,16 @@ Note: these scripts are internal to this project, not currently designed for gen
 
 
 ## 01.GeneticDiversity: 
-### *Scripts to analyze genetic diversity and gene flow*
+*Scripts to analyze genetic diversity and gene flow*
+
 
 ## 02.GenomeAssemblyandAnnotation
-# *Scripts to genome assembly and annotation*
+*Scripts to genome assembly and annotation*
 
 
 ## 03.GenomeCompare
-# *Scripts to genome compare*
+*Scripts to genome compare*
 
 
 ## 04.alleleexpression
-# *Scripts to ASE expression*
+*Scripts to ASE expression*
