@@ -9,3 +9,4 @@ python genomics_general/VCF_processing/parseVCF.py -i all_snp.recode.vcf.gz  | g
 python /public/home/chcg/software/genomics_general/freq.py -g geno.gz -p Cgi -p Can -p Csi -p Car --popsFile pop.info --target derived | grep --color=auto -v nan | gzip > sub1.pops1.tsv.gz
 # step3 Zscore D fd caculate
 Rscript /public/home/chcg/software/tutorials-1-master/analysis_of_introgression_with_snp_data/src/calculate_abba_baba.r sub.pops1.tsv.gz abba_baba_num.txt Cgi Can Csi Car chr_lengths.txt 
+
