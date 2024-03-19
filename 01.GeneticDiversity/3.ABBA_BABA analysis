@@ -10,3 +10,5 @@ python /public/home/chcg/software/genomics_general/freq.py -g geno.gz -p Cgi -p 
 # step3 Zscore D fd caculate
 Rscript /public/home/chcg/software/tutorials-1-master/analysis_of_introgression_with_snp_data/src/calculate_abba_baba.r sub.pops1.tsv.gz abba_baba_num.txt Cgi Can Csi Car chr_lengths.txt 
 
+#To identify specific genomic regions subjected to introgression by nonoverlapping windows
+python /public/home/chcg/software/genomics_general/ABBABABAwindows.py  -w 10000 -m 10 -g  geno.gz   -o  10kb.abbababa.csv -f phased -P1 Cgi -P2 Can -P3 Csi  -O  Car --popsFile  pop.info -T 6  --writeFailedWindows 
