@@ -1,4 +1,0 @@
-#### Sequence compare (minimap2+syri)
-minimap2 -t 30 -ax asm5 --eqx HAP1.fasta 00.syri/HAP2.syri.fasta  > out.sam
-syri -c out.sam -r HAP1.syri.fasta -q HAP2.syri.fasta --nc 10 -k -F S
-plotsr --sr syri.out --genomes genome.txt -S 0.4 -o genome.pdf
