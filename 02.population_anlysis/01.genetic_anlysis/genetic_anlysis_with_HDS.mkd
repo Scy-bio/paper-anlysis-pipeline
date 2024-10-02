@@ -1,0 +1,630 @@
+############### depth stat / map_rate
+while read i ; do
+(sentieon bwa mem -R "@RG\tID:XB\tSM:$i\tLB:WGS\tPL:Illumia" \
+  -t 64 -K 10000000 01.bwa.index/HAP1.fa $i'_1.cleaned.fq.gz' $i'_2.cleaned.fq.gz' || \
+  echo -n 'error' ) | \
+  sentieon util sort -o $i'_sorted.bam' -t 64 --sam2bam -i -
+done < 01.csi.group
+
+while read i; do
+sentieon driver -t 64 -i $i'_sorted.bam' \
+  --algo LocusCollector \
+  --fun score_info \
+  $i'_score.txt' ;
+sentieon driver -t 64 -i $i'_sorted.bam' \
+  --algo Dedup \
+  --score_info $i'_score.txt'  \
+  --metrics $i'_dedup_metrics.txt' \
+  $i'_deduped.bam';
+done < 01.csi.group
+
+ls ../dna2assemble/01.data/02.dup.data/*bam | wc -l
+
+######### SYRI.out  解析
+grep NOTAL syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.NOTAL.bed
+grep NOTAL syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.NOTAL.bed
+
+grep HDR syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.hdr.bed
+grep HDR syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.hdr.bed
+
+cat hapA.NOTAL.bed hapA.hdr.bed | sort -k1,1 -k2,2n -k3,3n  > hapA.HDS.bed
+cat hapB.NOTAL.bed hapB.hdr.bed | sort -k1,1 -k2,2n -k3,3n  > hapB.HDS.bed
+
+
+awk '{if($11=="SYNAL")print $0}' syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.SYNAL.bed
+awk '{if($11=="SYNAL")print $0}' syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.SYNAL.bed
+
+
+awk '{if($11=="INVAL")print $0}' syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.INVAL.bed
+awk '{if($11=="INVAL")print $0}' syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$3-1"\t"$2}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.INVAL.bed
+awk '{if($11=="TRANSAL")print $0}' syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.TRANSAL.bed
+awk '{if($11=="TRANSAL")print $0}' syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.TRANSAL.bed
+awk '{if($11=="INVTRAL")print $0}' syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.INVTRAL.bed
+awk '{if($11=="INVTRAL")print $0}' syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$3-1"\t"$2}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.INVTRAL.bed
+awk '{if($11=="DUPAL")print $0}' syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.DUPAL.bed
+awk '{if($11=="DUPAL")print $0}' syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.DUPAL.bed
+awk '{if($11=="INVDPAL")print $0}' syri.out | cut -f 1-3 | grep -v "-" | awk '{print $1"\t"$2-1"\t"$3}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "A"$0}' > hapA.INVDPAL.bed
+awk '{if($11=="INVDPAL")print $0}' syri.out | cut -f 6-8 | grep -v "-" | awk '{print $1"\t"$3-1"\t"$2}' > syri.not.bed
+bedtools sort -i syri.not.bed | awk '{print "B"$0}' > hapB.INVDPAL.bed
+
+cat hapA.INVAL.bed hapA.TRANSAL.bed hapA.INVTRAL.bed hapA.DUPAL.bed hapA.INVDPAL.bed  | sort -k1,1 -k2,2n -k3,3n  > hapA.tmp.bed; bedtools merge -i hapA.tmp.bed  > hapA.SVAL.bed
+cat hapB.INVAL.bed hapB.TRANSAL.bed hapB.INVTRAL.bed hapB.DUPAL.bed hapB.INVDPAL.bed  | sort -k1,1 -k2,2n -k3,3n  > hapB.tmp.bed; bedtools merge -i hapB.tmp.bed  > hapB.SVAL.bed
+
+###
+while read i; do ~/tools/PanDepth/pandepth  -i '../dna2assemble/01.data/02.dup.data/'$i'_deduped.bam' -b 01.bed/hapA.HDS.bed -o 'XX.HDS.'$i -t 2 ; done < ../dna2assemble/02.depth/list
+gunzip *gz
+
+grep "##" XX.HDS.*.stat | awk '{print $6}' | awk '{sum+=$1}END{print sum/NR}'
+grep "##" XX.HDS.*.stat  | awk '{print $6}'
+
+#### plot to coverage
+library(ggplot2)
+read.table('depth2all.txt') -> A
+colnames(A)<-c("group","cover")
+A$group <- factor(A$group,levels = c("HDS","SVAL","SYNAL","Genome"))
+
+p <-ggplot(A,aes(x=group,y=pi.value, fill = group, colour = group))+
+    geom_boxplot(aes(x = group, y = cover, fill = group),outlier.shape = NA, alpha = .5, width = .5, colour = "black")+
+    coord_flip()
+
+p1 <- p + labs(title = "",x = "")+
+    theme_light()+
+    theme(panel.grid = element_blank(),legend.position = "none") + # y轴刻度大小
+    scale_fill_manual(values =c('#5494cc','#e18283','#0d898a','#f9cc52'))+
+    scale_color_manual(values = c('#5494cc','#e18283','#0d898a','#f9cc52'))
+
+pdf("plot2depth.pdf", width=3, height=3.7)
+p1
+dev.off()
+
+
+#### OTHER
+sed 's/HiC_scaffold_19/Achr09/g' CskiameaA.longest.gff | sed 's/HiC_scaffold_17/Achr06/g' | sed 's/HiC_scaffold_15/Achr10/g' |  sed 's/HiC_scaffold_14/Achr05/g' | \
+sed 's/HiC_scaffold_11/Achr04/g' | sed 's/HiC_scaffold_9/Achr01/g' | sed 's/HiC_scaffold_7/Achr07/g' | sed 's/HiC_scaffold_6/Achr02/g' | \
+sed 's/HiC_scaffold_4/Achr03/g'  | sed 's/HiC_scaffold_1/Achr08/g' > CsiA.change_chr.gff
+
+bedtools coverage -a CsiA.change_chr.gff -b 01.bed/hapA.HDS.bed  | awk '{if($13==1) print $0}' | awk '{if($3=="gene")print $9}' | sed 's/ID=//g' > tmp.gene
+grep -Ff tmp.gene  -w CsiA.change_chr.gff | awk '{if($3=="transcript")print $9}'| cut -f 1 -d ";" | sed 's/ID=//g' > tmp.trans
+grep -Ff tmp.trans -w CsiA.change_chr.gff | awk '($3=="exon") {OFS="\t"; print $1,$4-1,$5}'  > hapA.HDS.exon.bed
+grep -Ff tmp.trans -w CsiA.change_chr.gff | awk '($3=="intron") {OFS="\t"; print $1,$4-1,$5}'  > hapA.HDS.intron.bed
+bedtools intersect -a 01.bed/hapA.HDS.bed -b 00.data/genome.intergenetic.bed > hapA.HDS.intergenetic.bed
+# bedtools complement -i gene.sort.bed -g genome.sort.bed > genome.intergenetic.bed
+
+while read i; do ~/tools/PanDepth/pandepth  -i '../dna2assemble/01.data/02.dup.data/'$i'_deduped.bam' -b hapA.HDS.exon.bed -o 'XX.PAV.'$i -t 2 ; done <  ../dna2assemble/02.depth/list
+while read i; do ~/tools/PanDepth/pandepth  -i '../dna2assemble/01.data/02.dup.data/'$i'_deduped.bam' -b hapA.HDS.intron.bed -o 'XX.PAV.'$i -t 2 ; done <  ../dna2assemble/02.depth/list
+while read i; do ~/tools/PanDepth/pandepth  -i '../dna2assemble/01.data/02.dup.data/'$i'_deduped.bam' -b hapA.HDS.intergenetic.bed -o 'XX.PAV.'$i -t 2 ; done <  ../dna2assemble/02.depth/list
+
+grep "##" XX.PAV.exon*.stat  | awk '{print $6} '
+
+
+###################
+read.table('plot2covr2.txt') -> A
+colnames(A)<-c("values","condictions","group")
+A$group <- factor(A$group,levels = c("HDS", "SVAL", "SYNAL","Genome"))
+p2<-ggplot(A, aes(fill=condictions, y=values, x=group))+
+    geom_bar(position=position_dodge(0.8),stat="summary",width=0.7,colour = "black",size=0)+
+    theme_classic(base_size = 12)+
+    geom_vline(aes(xintercept=as.numeric(as.factor(group))+0.5),linetype=2,cex=0.4)+
+    geom_vline(xintercept =A$condictions,linetype=2,cex=0.4)+
+    stat_summary(fun.data = 'mean_se', geom = "errorbar", colour = "black",
+                 width = 0.4,position = position_dodge(0.8))+
+    labs(title = "", y="Mapping coverage(%)", x = "")+
+    theme_light()+ theme(legend.direction = "horizontal", legend.position = "top")+
+    theme(panel.grid = element_blank(),  # 去掉网格线
+          axis.text.x = element_text(size = 14),  # x轴标题大小
+          axis.text.y = element_text(size = 14))  # y轴刻度大小 +
+
+pdf(file = "plot2covr.pdf", width =5, height = 5)
+p2 +coord_flip()
+dev.off( )
+
+/gpfshddpool/home/shichenyu/XB/06.bed
+
+
+######################################################
+### 1 EDTA annotation
+#### Repeatmoder
+singularity exec -B /public1:/public1 /public1/db/sif/dfam-tetools-latest.sif BuildDatabase -name Cgi -engine ncbi Cgigas.fa
+nohup singularity exec -B /public1:/public1 /public1/db/sif/dfam-tetools-latest.sif RepeatModeler --database Mer -threads 20  -LTRStruct 1>01.RepeatModeler.log 2>&1 &
+nohup singularity exec -B /public1:/public1 /public1/db/sif/dfam-tetools-latest.sif RepeatMasker -lib Car_edta.fa.mod.EDTA.TElib.fa -no_is -norna -pa 16 -gff -xsmall genome.HK.fa &
+
+#### TE annotation with EDTA
+awk '{if($0~"LINE" || $0~"SINE")print$0}' ../Genome-families.fa | cut -f 1 -d " " | sed 's/>//g' > id
+seqkit grep -f id ../Genome-families.fa  | awk '{print$1}'>  INE.liban
+
+nohup EDTA.pl --genome genome.fna --cds cds.fa --species others --step all --curatedlib INE.liban --u --anno 1 --threads 10 &
+
+cp 01.repeatmod/Genome-families.fa Genome.fa.mod.EDTA.final/Genome.fa.mod.RM.consensi.fa
+nohup EDTA.pl --genome Genome.fa  --cds cds.fa --species others --step final --anno 1  --overwrite 0 --curatedlib INE.liban --sensitive 1 --threads 10 &
+
+#### anno
+EDTA.pl --genome Genome.fa  --cds cds.fa --species others --step anno --anno 1 --overwrite 1 --curatedlib INE.liban --threads 10
+
+######################################################
+### 2 haplotype genome TE comparison and stat with chromosome
+# $genome.out is the RepeatMasker .out file generated from the last step, located in $genome.mod.EDTA.anno/
+##### panEDTA #####
+https://github.com/HuffordLab/NAM-genomes/blob/master/te-annotation/readme.md
+while read i ; do seqkit grep -f  <(perl /public1/db/EDTA/util/find_flTE.pl $i'.fa.mod.out' | awk '{print $10"#"$11}' | sort | uniq -c | awk '{if($1>0) print $2}') $i'.fa.mod.EDTA.TElib.fa' > '../'$i'.real'; done < list
+
+while read i ; do perl /public1/db/EDTA/util/rename_TE.pl $i'.real' > $i'.ori' ; done < 01.oyster/list
+i=0
+for j in *.ori; do   i=$(($i+5000));   perl /public1/db/EDTA/util/rename_TE.pl $j $i ;  done > NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw
+
+perl /public1/db/EDTA/util/rename_TE.pl NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw >  NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw2
+mv NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw2 NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw
+perl /public1/db/EDTA/util/cleanup_nested.pl -in NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw     -cov 0.95     -minlen 80     -miniden 80     -t 36
+
+cp NAM.EDTA1.8.0.EDTA.TElib.novel.fa.raw.cln panEDTA.TElib.fa
+
+### RepeatMasker
+1 Re-mask all genomes with the pan-genome TE lib：
+RepeatMasker -pa 36 -q -div 40 -lib panEDTA.TElib.fa -cutoff 225 -gff $genome.mod
+2 Re-run EDTA final on each genome：
+EDTA.pl --genome $genome -t $threads --step final --anno 1 --curatedlib $panEDTA.TElib.fa --cds $cds --rmout $genome.mod.out
+
+### state annotation
+perl /public1/db/EDTA/util/gff2bed.pl ../HAP1.fasta.mod.EDTA.TEanno.gff3 structural > EDTA.TEanno.bed
+awk 'BEGIN{FS=OFS="\t"};{if($5~"SINE"||$5~"LINE") $13="nonLTR_"$5}1' EDTA.TEanno.bed > EDTA.TEanno.change.bed
+awk 'BEGIN{FS=OFS="\t"};{if($5=="SINE" ||  $5=="LINE"  ) $13=$13"/other" }1' EDTA.TEanno.change.bed > EDTA.TEanno.change1.bed
+
+perl -nle 'my ($chr, $s, $e, $anno, $dir, $supfam)=(split)[0,1,2,3,8,12]; print "10000 0.001 0.001 0.001 $chr $s $e NA $dir $anno $supfam"' EDTA.TEanno.change1.bed > EDTA.TEanno.change.out;
+perl /public1/db/EDTA/util/count_base.pl ../HAP1.fasta.mod > genome.stats
+perl /public1/db/EDTA/util/buildSummary.pl -maxDiv 40 -stats genome.stats EDTA.TEanno.change.out > genome.EDTA.TEanno.sum
+perl /public1/db/EDTA/util/make_gff3_with_RMout.pl EDTA.TEanno.change.out
+mv EDTA.TEanno.change.out.gff3 00.HAP1.fasta.reTEanno.gff3
+
+### split for each chromosome
+cut -f 5 -d " " EDTA.TEanno.change.out | sort | uniq | head -n 10 > tmp1
+split -l 1 tmp1 -a 2 contig_
+ls contig_a* > list
+while read i ; do seqkit grep -f $i ../HAP1.fasta.mod > $i.fa ; done < list
+while read i ; do perl /public1/db/EDTA/util/count_base.pl $i.fa > $i.stats ; done < list
+
+cp tmp1 chr.list
+while read i ; do awk -F " " '{if($5=="'$i'")print $0}' EDTA.TEanno.change.out > $i.out ; done < chr.list
+
+paste list chr.list > tmp
+awk '{print "mv""  "$1".stats" "  " $2 }' tmp
+
+while read i; do perl /public1/db/EDTA/util/buildSummary.pl -maxDiv 40 -stats $i $i.out > $i.EDTA.TEanno.sum ; done < chr.list
+grep "Total     " *.EDTA.TEanno.sum | awk '{print $1"\t"$4}' | sed 's/.EDTA.TEanno.sum:Total//g'
+
+
+######################################################
+### 3 stats TE with HDS
+
+**/public1/node3_shicy/PRJ02_Csikamea/07.HP.syri/00.syri**
+cp 00.syri/*out  01.repeat2te
+
+grep -v "Simple_repeat" 00.HAP1.fasta.reTEanno.gff3 | grep -v "Low_complexity" | awk '{print "HiC_scaffold_"$1"\t"$4-1"\t"$5}' |  grep -v "#" > repeat.hap1.bed
+grep -v "Simple_repeat" 00.HAP2.fasta.reTEanno.gff3 | grep -v "Low_complexity" | awk '{print "HiC_scaffold_"$1"\t"$4-1"\t"$5}' |  grep -v "#" > repeat.hap2.bed
+
+samtools faidx HAP1.fasta
+awk '{print "chr - "$1" "$1" 0 "$2" genome1"}' CskiameaB.fa.fai > karyotype.txt
+cut -d ' ' -f 3,6 karyotype.txt | tr ' ' '\t' > tmp.genome
+bedtools makewindows -g tmp.genome -w 500000 > tmp.windows
+awk '{print $0}' tmp.windows > hap1.win.bed
+awk '{print $0}' tmp.windows > hap2.win.bed
+
+bedtools coverage  -a hap1.win.bed -b repeat.hap1.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+bedtools coverage  -a hap2.win.bed -b repeat.hap2.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+## 216700865 526669925 0.411455
+## 209356861 516097410 0.405654
+
+bedtools coverage  -a hapA.HDS.bed -b repeat.hap1.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+bedtools coverage  -a hapB.HDS.bed -b repeat.hap2.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+## 178769989 366493343 0.487785
+## 170465803 354488969 0.480878
+
+bedtools coverage  -a hapA.SVAL.bed -b repeat.hap1.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+bedtools coverage  -a hapB.SVAL.bed -b repeat.hap2.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+## 8474074 16160670 0.524364
+## 9239308 17347277 0.53260
+
+bedtools coverage  -a hapA.SYNAL.bed -b repeat.hap1.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+bedtools coverage  -a hapB.SYNAL.bed -b repeat.hap2.bed | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+## 29304828 143995392 0.203512
+## 29432195 144018021 0.204365
+
+
+grep -v "Simple_repeat" HAP1.fasta.mod.EDTA.intact.gff3 | grep -v "Low_complexity" | awk '{print "HiC_scaffold_"$1"\t"$4-1"\t"$5}' |  grep -v "#" > repeat.hap1.intac.bed
+grep -v "Simple_repeat" HAP2.fasta.mod.EDTA.intact.gff3 | grep -v "Low_complexity" | awk '{print "HiC_scaffold_"$1"\t"$4-1"\t"$5}' |  grep -v "#" > repeat.hap2.intac.bed
+
+sed -i 's/HiC_scaffold_20/Bchr09/g' repeat.*.bed
+sed -i 's/HiC_scaffold_19/Achr09/g' repeat.*.bed
+sed -i 's/HiC_scaffold_18/Bchr06/g' repeat.*.bed
+sed -i 's/HiC_scaffold_17/Achr06/g' repeat.*.bed
+sed -i 's/HiC_scaffold_16/Bchr10/g' repeat.*.bed
+sed -i 's/HiC_scaffold_15/Achr10/g' repeat.*.bed
+sed -i 's/HiC_scaffold_14/Achr05/g' repeat.*.bed
+sed -i 's/HiC_scaffold_13/Bchr05/g' repeat.*.bed
+sed -i 's/HiC_scaffold_12/Bchr04/g' repeat.*.bed
+sed -i 's/HiC_scaffold_11/Achr04/g' repeat.*.bed
+sed -i 's/HiC_scaffold_10/Bchr01/g' repeat.*.bed
+sed -i 's/HiC_scaffold_9/Achr01/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_8/Bchr07/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_7/Achr07/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_6/Achr02/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_5/Bchr02/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_4/Achr03/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_3/Bchr03/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_2/Bchr08/g'  repeat.*.bed
+sed -i 's/HiC_scaffold_1/Achr08/g'  repeat.*.bed
+bedtools coverage  -a repeat.intac.bed -b 00.syri/hapA.HDS.bed | awk '{if($7 ==1 )print $0}' | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+bedtools coverage  -a repeat.intac.bed -b 00.syri/hapA.HDS.bed | awk '{if($7<1 && $7 > 0 )print $0}' | awk '{sum1 += $5; sum2+=$6} END {print sum1,sum2,sum1/sum2}'
+
+20875938
+4488005
+25363943 31155229
+############################
+library(ggplot2)
+library(reshape2)
+
+data <- data.frame(
+    Group = c("HAP1", "SYNAL1", "SV1", "HDS1","HAP2", "SYNAL2", "SV2", "HDS2"),
+    Value1 = c(526669925, 143995392, 16160670, 366493343,516097410,144018021,17347277,354488969),
+    Value2 = c(216700865, 29304828, 8474074, 178769989, 209356861,29432195,9239308,170465803)
+)
+data$Value3 <- data$Value1-data$Value2
+data<- data[,-2]
+data1 <-melt(data,id.vars='Group')
+
+fill_colors <- c("black", "white")
+fill_patterns <- c("striped", "solid")
+
+p1 <- ggplot(data=data1, aes(Group,value,fill=variable)) +
+    geom_bar(stat = "identity", position = "stack",width = 0.4) +
+    theme_minimal() +
+    labs(title = "Part and Rest of Total", x = "Group", y = "Count", fill = "Type") +
+    scale_fill_manual(values = fill_colors,
+                      labels = fill_patterns,
+                      na.value = "grey90",
+                      guide = guide_legend(title = "Fill")) + theme_light()+
+    theme(panel.grid = element_blank(),legend.position = "none") + coord_flip()
+pdf(file = "plot2te.pdf", width =7, height = 5)
+p1
+dev.off( )
+
+#####################
+## pi calculater
+
+### sentieon call snp
+*/gpfshddpool/home/shichenyu/XB/dna2assemble/01.data*
+#!/bin/bash
+#JSUB -q normal
+#JSUB -n 64
+#JSUB -J sentieon.log
+#JSUB -e err.log
+#JSUB -o out.log
+source /gpfshddpool/jhinno/unischeduler/conf/jobstarter/unisched
+module purge
+module load sentieon
+
+while read i ; do
+(sentieon bwa mem -R "@RG\tID:XB\tSM:$i\tLB:WGS\tPL:Illumia" \
+  -t 64 -K 10000000 01.bwa.index/HAP1.fa $i'_1.cleaned.fq.gz' $i'_2.cleaned.fq.gz' || \
+  echo -n 'error' ) | \
+  sentieon util sort -o $i'_sorted.bam' -t 64 --sam2bam -i -
+done < 01.csi.group
+
+while read i; do
+sentieon driver -t 64 -i $i'_sorted.bam' \
+  --algo LocusCollector \
+  --fun score_info \
+  $i'_score.txt' ;
+sentieon driver -t 64 -i $i'_sorted.bam' \
+  --algo Dedup \
+  --score_info $i'_score.txt'  \
+  --metrics $i'_dedup_metrics.txt' \
+  $i'_deduped.bam';
+done < 01.csi.group
+
+while read i; do
+sentieon driver -i $i'_deduped.bam' -r 01.bwa.index/HAP1.fa -t 64 --algo Haplotyper --emit_mode gvcf $i'.g.vcf.gz';
+done < 01.csi.group
+
+GVCF_INPUTS=`ls *g.vcf.gz`
+sentieon driver -r 01.bwa.index/HAP1.fa -t 64  --algo GVCFtyper --emit_mode all output.vcf.gz -v $GVCF_INPUTS
+
+### prepare VCF to pixy
+vcftools --gzvcf output.vcf.gz --max-maf 0 --minQ 30 --max-missing 0.8 --min-meanDP 10 --max-meanDP 500 --remove-indels --recode --stdout | bgzip -c > output_invariant_filtered.vcf.gz;
+vcftools --gzvcf output.vcf.gz --mac 1 --min-alleles 2 --max-alleles 2 --minQ 30 --max-missing 0.8 --min-meanDP 10 --max-meanDP 500 --remove-indels --recode --stdout | bgzip -c > output_variant_filtered.vcf.gz ;
+tabix output_invariant_filtered.vcf.gz ;
+tabix output_variant_filtered.vcf.gz ;
+bcftools concat --allow-overlaps output_invariant_filtered.vcf.gz output_variant_filtered.vcf.gz -O z -o out_allsites_filtered.vcf.gz
+
+
+### Statics of  each gene region in genome pixy
+*/gpfshddpool/home/shichenyu/XB/03.pixy*
+conda activate shicy_pixy
+
+pixy --stats pi --vcf out_allsites_filtered.vcf.gz --populations pop_nd --bed_file csi.gene.bed --n_cores 32 --bypass_invariant_check yes
+
+
+### HDS
+bedtools coverage -a 02.gene.bed -b ../../06.bed/01.bed/hapA.HDS.bed |awk '{if($7==1)print $1"\t"$2"\t"$3}' | sed 's/ID=//g' > hds.gene.bed
+
+conda activate shicy_pixy
+pixy --stats pi --vcf out_allsites_filtered.vcf.gz --populations pop_nd --bed_file 02.pixy2gene/hds.gene.bed --n_cores 4 --bypass_invariant_check yes
+
+while read i ; do
+pixy --stats pi --vcf out_allsites_filtered.vcf.gz --populations pop_nd --bed_file $i  --n_cores 32 --bypass_invariant_check yes ;
+mv pixy_pi.txt '02.diff2region/'$i.pi.txt;
+done < list
+
+############# in R
+library(cowplot)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(plyr)
+library(ggthemes)
+library(ggplot2)
+library(ggsci)
+library(ggpubr)
+library(scales)
+library(gghalves)
+
+Data2  <- read.table('pixy2gene_synal.txt', header=TRUE, skip=0, sep='\t')
+Data3  <- read.table('pixy2gene_sval.txt', header=TRUE, skip=0, sep='\t')
+Data4  <- read.table('pixy2gene_HDS.txt', header=TRUE, skip=0, sep='\t')
+
+Data2$ID <- paste(Data2$chromosome,Data2$window_pos_1,Data2$window_pos_2,sep = "-")
+Data3$ID <- paste(Data3$chromosome,Data3$window_pos_1,Data3$window_pos_2,sep = "-")
+Data4$ID <- paste(Data4$chromosome,Data4$window_pos_1,Data4$window_pos_2,sep = "-")
+
+tmp2.df <- data.frame("ID"=Data2$ID,"pi.value"=Data2$avg_pi,"group"="SY")
+tmp3.df <- data.frame("ID"=Data3$ID,"pi.value"=Data3$avg_pi,"group"="SV")
+tmp4.df <- data.frame("ID"=Data4$ID,"pi.value"=Data4$avg_pi,"group"="HDS")
+
+
+rbind(tmp2.df,tmp3.df,tmp4.df) -> df
+dataf_na <- na.omit(df)
+# dataf_na <- dataf_na[dataf_na$count_missing/dataf_na$count_comparisons < 1,]
+
+source("geom_flat_violin.R")
+
+dataf_na$group <- factor(dataf_na$group,levels = c("SY","SV","HDS"))
+df <- dataf_na[dataf_na$pi.value<0.15,]
+
+p <-ggplot(df,aes(x=group,y=pi.value, fill = group, colour = group))+
+    geom_flat_violin(position = position_nudge(x = .25, y = 0),adjust =2)+
+    geom_point(position = position_jitter(width = .15), size = .25)+
+    geom_boxplot(aes(x = group, y = pi.value, fill = group),outlier.shape = NA, alpha = .5, width = .1, colour = "black")
+
+p1 <- p + labs(title = "",x = "")+
+    theme_light()+
+    theme(panel.grid = element_blank(),legend.position = "none") + # y轴刻度大小
+    scale_fill_manual(values =c('#0d898a','#e18283','#5494cc'))+
+    scale_color_manual(values = c('#0d898a','#e18283','#5494cc'))
+
+comparisons <- list(c("SV", "HDS"),c("SY", "HDS"),c("SY", "SV"))
+p2 <- p1+stat_compare_means(comparisons=comparisons,
+                      label = "p.signif",method = "wilcox.test",hide.ns = F) + theme(legend.position = "none")
+
+
+pdf("plot2pi.pdf", width=6, height=3.7)
+p2
+dev.off()
+
+
+############### BLOCK
+#### call snp
+while read i ; do
+(sentieon bwa mem -R "@RG\tID:XB\tSM:$i\tLB:WGS\tPL:Illumia" \
+  -t 64 -K 10000000 01.bwa.index/HAP1.fa $i'_1.cleaned.fq.gz' $i'_2.cleaned.fq.gz' || \
+  echo -n 'error' ) | \
+  sentieon util sort -o $i'_sorted.bam' -t 64 --sam2bam -i -
+done < 01.csi.group
+
+while read i; do
+sentieon driver -t 64 -i $i'_sorted.bam' \
+  --algo LocusCollector \
+  --fun score_info \
+  $i'_score.txt' ;
+sentieon driver -t 64 -i $i'_sorted.bam' \
+  --algo Dedup \
+  --score_info $i'_score.txt'  \
+  --metrics $i'_dedup_metrics.txt' \
+  $i'_deduped.bam';
+done < 01.csi.group
+
+while read i; do
+sentieon driver -i $i'_deduped.bam' -r 01.bwa.index/HAP1.fa -t 64 --algo Haplotyper --emit_mode gvcf $i'.g.vcf.gz';
+done < 01.csi.group
+
+GVCF_INPUTS=`ls *g.vcf.gz`
+sentieon driver -r 01.bwa.index/HAP1.fa -t 64  --algo GVCFtyper --emit_mode all output.vcf.gz -v $GVCF_INPUTS
+
+#### 过滤
+gatk SelectVariants -select-type SNP  --restrict-alleles-to BIALLELIC -V output.vriant.vcf.gz -O output.snp.vcf.gz
+
+gatk VariantFiltration \
+    -V output.snp.vcf.gz \
+    -filter "QD < 2.0" --filter-name "QD2" \
+    -filter "QUAL < 30.0" --filter-name "QUAL30" \
+    -filter "SOR > 3.0" --filter-name "SOR3" \
+    -filter "FS > 60.0" --filter-name "FS60" \
+    -filter "MQ < 40.0" --filter-name "MQ40" \
+    -filter "MQRankSum < -12.5" --filter-name "MQRankSum-12.5" \
+    -filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8" \
+    --filter-expression "AF < 0.05 || AF > 0.95" --filter-name "AF5-95" \
+    -O 01.nd-XB.filt.snp.vcf.gz;
+
+gatk SelectVariants --exclude-filtered TRUE -V 01.nd-XB.filter.snp.vcf.gz -O 01.nd-XB.filtered.snp.vcf.gz
+vcftools --gzvcf  01.nd-XB.filtered.snp.vcf.gz  --recode-INFO-all --maf 0.05 --max-alleles 2 --min-meanDP 3 --min-alleles 2  --max-missing 0.8 --out 02.nd-XB --recode --remove-filtered-all
+
+#### haplotyper blocks
+conda create -n shicy_hap
+conda install bioconda::haploview -y
+
+## LDBlockShow.sh
+while read i ; do
+LDBlockShow -InVCF 02.nd-XB.recode.vcf -OutPut $i -Region $i -OutPng -SeleVar 2 ;
+done < tmp.windows
+
+while read i; do
+  cp ../06.LD_"$i"/*blocks.gz .
+  gunzip *.gz
+  cat *blocks | grep 'A'"$i" | awk '{print $1"\t"($2-1)"\t"$3"\t"$4*1000}' > "07.A"$i".blocks.bed"
+  rm *blocks
+done < ../list
+
+
+awk '{sum+=$4}END{print sum/NR,sum}' blocks.bed
+# 41.1722 19128421
+
+bedtools coverage -a blocks.bed -b ../06.bed/01.bed/hapA.HDS.bed | awk '{if($8==1)print $0}' | awk '{sum+=$4}END{print sum/NR,sum}'
+# 41.0005 11630643
+bedtools coverage -a blocks.bed -b ../06.bed/01.bed/hapA.SYNAL.bed | awk '{if($8==1)print $0}' | awk '{sum+=$4}END{print sum/NR,sum}'
+# 38.5099 6461661
+bedtools coverage -a blocks.bed -b ../06.bed/01.bed/hapA.SVAL.bed  | awk '{if($8==1)print $0}' | awk '{sum+=$4}END{print sum/NR,sum}'
+# 40.941 406053
+
+
+bedtools coverage -a blocks.bed -b ../06.bed/01.bed/hapA.HDS.bed | awk '{if($8==1)print $0}'      > bk.HDS.bed
+bedtools coverage -a blocks.bed -b ../06.bed/01.bed/hapA.SYNAL.bed | awk '{if($8==1)print $0}'    > bk.SYNAL.bed
+bedtools coverage -a blocks.bed -b ../06.bed/01.bed/hapA.SVAL.bed  | awk '{if($8==1)print $0}'    > bk.SVAL.bed
+
+
+library(cowplot)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(plyr)
+library(ggthemes)
+library(ggplot2)
+library(ggsci)
+library(ggpubr)
+library(scales)
+library(gghalves)
+library(ggforce)
+
+Data1  <- read.table('bk.HDS.bed', header=F, skip=0, sep='\t')
+Data2  <- read.table('bk.SVAL.bed', header=F, skip=0, sep='\t')
+Data3  <- read.table('bk.SYNAL.bed', header=F, skip=0, sep='\t')
+
+Data1$ID <- paste(Data1$V1,Data1$V2,Data1$V3,sep = "-")
+Data2$ID <- paste(Data2$V1,Data2$V2,Data2$V3,sep = "-")
+Data3$ID <- paste(Data3$V1,Data3$V2,Data3$V3,sep = "-")
+
+tmp1.df <- data.frame("ID"=Data1$ID,"blk.value"=Data1$V4,"group"="HDS")
+tmp2.df <- data.frame("ID"=Data2$ID,"blk.value"=Data2$V4,"group"="SV")
+tmp3.df <- data.frame("ID"=Data3$ID,"blk.value"=Data3$V4,"group"="SY")
+
+rbind(tmp1.df,tmp2.df,tmp3.df,tmp4.df) -> df
+df$group <- factor(df$group,levels = c("SY","SV","HDS"))
+
+p <-ggplot(df,aes(x=group,y=blk.value, fill = group, colour = group))+
+    geom_flat_violin(position = position_nudge(x = .25, y = 0),adjust =2)+
+    geom_boxplot(aes(x = group, y = blk.value, fill = group),outlier.shape = NA, alpha = .5, width = .1, colour = "black") +
+    stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red")
+
+p1 <- p + labs(title = "",x = "")+
+    theme_light()+
+    theme(panel.grid = element_blank(),legend.position = "none") + # y轴刻度大小
+    scale_fill_manual(values = c('#0d898a','#e18283','#5494cc'))+scale_color_manual(values = c('#0d898a','#e18283','#5494cc'))
+
+pdf(file = "Fig2f.pdf", width =9, height = 5)
+p1 + facet_zoom(ylim = c(20, 80),zoom.size = 0.8)
+dev.off( )
+
+
+####
+Normalized haplotype diversity
+
+简述： whatshap 定相 ； beagle 填充 ; 填充结果用于后续单倍型多样性分析
+单倍型多样性定义为：指定区域内单倍型数目的多样性？ 使用脚本进行解析
+-c bioconda gatk4 bwa samtools whatshap
+conda create -n variantcall
+conda install bioconda::whatshap  ### 注意看版本信息
+
+分段进行单倍型定相：
+awk '{print "chr - "$1" "$1" 0 "$2" genome1"}' HAP1.fa.fai > karyotype.txt
+cut -d ' ' -f 3,6 karyotype.txt | tr ' ' '\t' > tmp.genome
+bedtools makewindows -g tmp.genome -w 10000000 > tmp.windows
+awk '{print $1":"$2+1"-"$3}'  tmp.windows > tmp.list
+while read i; do gatk SelectVariants -R 01.bwa.index/HAP1.fa -V 01.nd-XB.filtered.snp.vcf.gz -L $i -O '01.tmp/block.'$i'.snp.vcf.gz' ; done < tmp.list
+
+while read i; do whatshap phase -o '../03.whatshap/block.'$i'.phase.vcf' --reference=../01.bwa.index/HAP1.fa '../01.tmp/block.'$i'.snp.vcf.gz' nd11_deduped.bam nd12_deduped.bam nd14_deduped.bam nd15_deduped.bam nd16_deduped.bam nd17_deduped.bam nd18_deduped.bam nd19_deduped.bam nd1_deduped.bam nd20_deduped.bam nd21_deduped.bam nd22_deduped.bam nd23_deduped.bam nd24_deduped.bam nd25_deduped.bam nd26_deduped.bam nd27_deduped.bam nd28_deduped.bam nd29_deduped.bam nd30_deduped.bam nd3_deduped.bam nd4_deduped.bam nd5_deduped.bam nd6_deduped.bam nd7_deduped.bam; done < list01
+
+合并单倍型定相vcf文件，并质控，保留 mis 0.8
+bcftools concat *vcf > ../merge.phase.vcf
+vcftools --gzvcf merge.phase.vcf --recode-INFO-all --maf 0.05 --max-alleles 2 --min-alleles 2  --max-missing 0.8 --out merge.phase.filter.vcf --recode --remove-filtered-all
+bcftools sort merge.phase.filter.vcf.recode.vcf > sorted.vcf
+### 填充：
+beagle --java-options "-Xmx20g" gt=sorted.vcf out=imputed_results nthreads=10
+## java -Xmx10g -jar /gpfsssdpool/softwares/anaconda3/envs/beagle/share/beagle-5.4_22Jul22.46e-0/beagle.jar gt=sorted.vcf out=imputed_results nthreads=10
+### 最后用0.8缺失填充  然后 标准化 每个block的单倍型块多样性/单倍型数目
+
+
+bedtools merge -i hapA.SYNAL.bed | awk '{print "region""\t"$0}' > region.hapA.SYNAL.bed
+bedtools merge -i hapA.SVAL.bed | awk '{print "region""\t"$0}' > region.hapA.SVAL.bed
+bedtools merge -i hapA.HDS.bed | awk '{print "region""\t"$0}' > region.hapA.HDS.bed
+
+~/tools/Theta_D_H.Est/Theta_D_H.Est --gzvcf imputed_results.vcf.gz --region region.hapA.HDS.merge.bed --out HDS.region.out.txt
+
+#!/bin/bash
+#JSUB -q normal
+#JSUB -n 1
+#JSUB -J hds.haplotype_01.log
+#JSUB -e hds.err_list01.log
+#JSUB -o hds.out_list01.log
+eval "$(conda shell.bash hook)"
+conda activate shicy
+~/tools/Theta_D_H.Est/Theta_D_H.Est --gzvcf imputed_results.vcf.gz --region region.hapA.HDS.bed --out HDS.region.out.txt
+
+
+region.hapA.SYNAL.merge.bed
+zcat SVAL.region.out.txt.gz | awk '{if($11>0)print $0}' | awk '{sum += $12/$11} END {print sum/NR}'
+zcat HDS.region.out.txt.gz | awk '{if($11>0)print "HDS\t"$12/$11}' > 02.HDS.txt
+
+
+
+library(cowplot)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(plyr)
+library(ggthemes)
+library(ggplot2)
+library(ggsci)
+library(ggpubr)
+library(scales)
+library(gghalves)
+library(ggforce)
+
+read.table('03.all.txt') -> df
+comparisons <- list(c("SVAL", "SYNAL"),c("SYNAL", "HDS"),c("SVAL", "HDS"))
+df$V1 <- factor(df$V1,levels = c("SYNAL","SVAL","HDS"))
+p <- ggplot(df,aes(x=V1,y=V2, fill = V1, colour = V1))+
+    geom_boxplot(aes(x = V1, y = V2, fill = V1),outlier.shape = NA, alpha = .5, width = .1, colour = "black") +
+    stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red")
+
+p1 <- p + labs(title = "",x = "")+
+    theme_light()+
+    theme(panel.grid = element_blank(),legend.position = "none") + # y轴刻度大小
+    scale_fill_manual(values = c('#0d898a','#e18283','#5494cc'))+
+    scale_color_manual(values = c('#0d898a','#e18283','#5494cc')) +
+    stat_compare_means(comparisons=comparisons,
+                       label = "p.signif",method = "wilcox.test",hide.ns = F) + theme(legend.position = "none")
+
+pdf("Fig2g.pdf", width=5, height=3)
+p1
+dev.off()
